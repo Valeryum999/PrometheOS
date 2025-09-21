@@ -3,4 +3,4 @@
 *.iso
 isodir
 obj
-bin
+sysroot
