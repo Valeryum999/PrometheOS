@@ -61,6 +61,32 @@ int printf(const char* restrict format, ...) {
 			if (!print(str, len))
 				return -1;
 			written += len;
+		} else if (*format == 'd') {
+			format++;
+			unsigned char* str = (unsigned char *) "0000000000";
+			int num = va_arg(parameters, int);
+			itoa(num, str, 11, 10);
+			size_t len = strlen((const char *) str);
+			if (maxrem < len) {
+				// TODO: Set errno to EOVERFLOW.
+				return -1;
+			}
+			if (!print((const char *)str, len))
+				return -1;
+			written += len;
+		} else if (*format == 'x') {
+			format++;
+			unsigned char* str = (unsigned char *) "00000000";
+			int num = va_arg(parameters, int);
+			itoa(num, str, 10, 16);
+			size_t len = strlen((const char *) str);
+			if (maxrem < len) {
+				// TODO: Set errno to EOVERFLOW.
+				return -1;
+			}
+			if (!print((const char *)str, len))
+				return -1;
+			written += len;
 		} else {
 			format = format_begun_at;
 			size_t len = strlen(format);

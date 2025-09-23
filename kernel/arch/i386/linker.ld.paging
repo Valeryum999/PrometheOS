@@ -3,21 +3,19 @@ ENTRY(_start)
 LOW_BASE = 0x100000;
 KERNEL_BASE = 0xC0000000;
 
-SECTIONS
-{
+SECTIONS {
+	
 	. = LOW_BASE;
+
+	.multiboot ALIGN(4K): {
+		*(.multiboot)
+	}
 
 	.lowtext BLOCK(4K) : ALIGN(4K)
 	{
-		*(.multiboot)
 		*(.lowentry)
 		*(.lowtext)
 	}
-
-	.lowdata :
-    {
-        *(.lowdata)
-    }
 
 	LOWER_OFFSET = . - LOW_BASE;
 	HIGHER_OFFSET = KERNEL_BASE - . + LOWER_OFFSET;
