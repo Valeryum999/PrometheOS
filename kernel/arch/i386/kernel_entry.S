@@ -27,3 +27,8 @@ _entry:
 .local stack_top, stack_bottom
 .comm stack_bottom, 8192, 16
 .comm stack_top, 0
+
+.global kpanic
+kpanic:
+    cli
+    hlt
