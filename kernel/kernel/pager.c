@@ -3,8 +3,9 @@
 
 uint32_t page_directory[1024] __attribute__((aligned(4096), section(".lowdata")));
 uint32_t first_page_table[1024] __attribute__((aligned(4096), section(".lowdata")));
-uint32_t new_page_table[1024] __attribute__((aligned(4096), section(".lowdata")));
-uint32_t *page_table;
+uint32_t kernel_page_table[1024] __attribute__((aligned(4096), section(".lowdata")));
+uint32_t second_kernel_page_table[1024] __attribute__((aligned(4096), section(".lowdata")));
+uint32_t *virtual_page_directory = (uint32_t *) 0xfffff000;
 
 __attribute__((section(".lowtext"))) void init_paging(void){
     for(int i = 0; i < 1024; i++){
@@ -12,15 +13,23 @@ __attribute__((section(".lowtext"))) void init_paging(void){
     }
     
     page_directory[0] = ((uint32_t) first_page_table | PAGE_WRITABLE | PAGE_PRESENT);
-    page_directory[768] = ((uint32_t) new_page_table | PAGE_WRITABLE | PAGE_PRESENT);
+    page_directory[768] = ((uint32_t) kernel_page_table | PAGE_WRITABLE | PAGE_PRESENT);
+    page_directory[769] = ((uint32_t) second_kernel_page_table | PAGE_WRITABLE | PAGE_PRESENT);
     
     for(int i = 0; i < 1024; i++){
         first_page_table[i] = (i * PAGE_SIZE) | PAGE_WRITABLE | PAGE_PRESENT;
     }
     for(int i = 0; i < 1024; i++){
-        new_page_table[i] = (0x100000 + i * 0x1000) | PAGE_WRITABLE | PAGE_PRESENT;
+        kernel_page_table[i] = (0x100000 + i * PAGE_SIZE) | PAGE_WRITABLE | PAGE_PRESENT;
+    }
+    for(int i = 0; i < 1024; i++){
+        second_kernel_page_table[i] = (0x500000 + i * PAGE_SIZE) | PAGE_WRITABLE | PAGE_PRESENT;
     }
     
+    //setup recursive mapping
+    page_directory[1023] = (uint32_t) page_directory | PAGE_WRITABLE | PAGE_PRESENT;
+
+    //load pd into cr3 and enter paging mode by setting pg in cr0
     load_page_directory((uint32_t)page_directory);
     enable_paging();
 }
@@ -36,41 +45,24 @@ __attribute__((section(".lowtext"))) void enable_paging() {
     __asm__ volatile("mov %0, %%cr0" :: "r"(cr0));
 }
 
-void init_recursive_page_tables(void){
-    uint32_t result = (uint32_t)page_directory - 0x100000 + KERNEL_BASE;
-    printf("result: %x\n", result);
-    uint32_t *page_directory_virtual = (uint32_t *) result;
-    printf("kekw at %x should have pte 0: %x\n",result,page_directory_virtual[0]);
-    page_directory[1023] = (uint32_t) page_directory | PAGE_WRITABLE | PAGE_PRESENT;
-    // uint32_t *test = (uint32_t *)0xfffff000;
-    // printf("test hope: %x",test[0]);
-}
-
-void kalloc_page_table(uint32_t *virtualaddr){
-    page_table = kalloc_frame();
+void kalloc_page_tables(uint32_t *virtualaddr){
+    uint32_t *page_table_entry = kalloc_frame();
     uint32_t page_directory_index = (uint32_t)virtualaddr >> 22;
     for(int i = 0; i < 1024; i++){
-        page_table[i] = (i * 0x1000) | 3;
+        page_table_entry[i] = ((uint32_t)page_table_entry + i * 0x1000) | PAGE_WRITABLE | PAGE_PRESENT;
     }
-    
-    page_directory[page_directory_index] = ((uint32_t) page_table) | 3;
-    printf("page directory entry at %d: %x\n",page_directory_index,page_directory[page_directory_index]);
+    virtual_page_directory[page_directory_index] = ((uint32_t)page_table_entry) | PAGE_WRITABLE | PAGE_PRESENT;
 }
 
 void *get_physaddr(void *virtualaddr) {
     uint32_t page_directory_index = (uint32_t)virtualaddr >> 22;
     uint32_t page_table_index = (uint32_t)virtualaddr >> 12 & 0x3FF;
-
-    // uint32_t *pd = (uint32_t *)0xFFFFF000;
-    if(!(page_directory[page_directory_index] & 0x1))
+    if(!(virtual_page_directory[page_directory_index] & 0x1))
         return NULL;
-    // Here you need to check whether the PD entry is present.
 
-    page_table = (uint32_t *) page_directory[page_directory_index];
-    // uint32_t *pt = ((uint32_t *)0xFFC00000) + (0x400 * pdindex);
+    uint32_t *page_table = (uint32_t *)((uint32_t)0xFFC00000 + page_directory_index * PAGE_SIZE);
     if(!(page_table[page_table_index] & 0x1))
         return NULL;
-    // Here you need to check whether the PT entry is present.
 
     return (void *)((page_table[page_table_index] & ~0xFFF) + ((uint32_t)virtualaddr & 0xFFF));
 }
@@ -82,10 +74,10 @@ void map_page(void *physaddr, void *virtualaddr, unsigned int flags) {
     uint32_t page_table_index = (uint32_t)virtualaddr >> 12 & 0x3FF;
 
     // unsigned long *pd = (unsigned long *)0xFFFFF000;
-    if(!(page_directory[page_directory_index] & 0x1))
-        kalloc_page_table(virtualaddr);
+    if(!(virtual_page_directory[page_directory_index] & 0x1))
+        kalloc_page_tables(virtualaddr);
 
-    page_table = (uint32_t *) page_directory[page_directory_index];
+    uint32_t *page_table = (uint32_t *) 0xffc00000 + page_directory_index*PAGE_SIZE;
     // Here you need to check whether the PT entry is present.
     // When it is, then there is already a mapping present. What do you do now?
     // if(!(page_table[page_table_index] & 0x1))

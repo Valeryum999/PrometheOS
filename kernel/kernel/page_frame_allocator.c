@@ -10,7 +10,7 @@ void init_start_frame(){
 }
 
 void *kalloc_frame_int(){
-    start_frame = (void *)0x106000;
+    start_frame = (void *)0x108000;
     uint32_t i = 0;
     while(frame_map[i] != FREE){
         i++;

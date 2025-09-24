@@ -1,6 +1,6 @@
-DEFAULT_HOST!=../default-host.sh
+DEFAULT_HOST!=../scripts/default-host.sh
 HOST?=DEFAULT_HOST
-HOSTARCH!=../target-triplet-to-arch.sh $(HOST)
+HOSTARCH!=../scripts/target-triplet-to-arch.sh $(HOST)
 
 CFLAGS?=-O2 -g
 CPPFLAGS?=
@@ -32,6 +32,10 @@ $(KERNEL_ARCH_OBJS) \
 kernel/kernel.o \
 kernel/page_frame_allocator.o \
 kernel/pager.o \
+kernel/gdt.o \
+kernel/isrs_gen.o \
+kernel/idt.o \
+kernel/isr.o \
 
 OBJS=\
 $(ARCHDIR)/crti.o \
@@ -58,6 +62,7 @@ prometheos.kernel: $(OBJS) $(ARCHDIR)/linker.ld
 	$(CC) -T $(ARCHDIR)/linker.ld -o $@ $(CFLAGS) $(LINK_LIST)
 	grub-file --is-x86-multiboot prometheos.kernel
 
+
 $(ARCHDIR)/crtbegin.o $(ARCHDIR)/crtend.o:
 	OBJ=`$(CC) $(CFLAGS) $(LDFLAGS) -print-file-name=$(@F)` && cp "$$OBJ" $@
 
@@ -66,6 +71,9 @@ $(ARCHDIR)/crtbegin.o $(ARCHDIR)/crtend.o:
 
 .S.o:
 	$(CC) -MD -c $< -o $@ $(CFLAGS) $(CPPFLAGS)
+
+kernel/isrs_gen.c arch/i386/isrs_gen.inc &:
+	python ../scripts/generate_isrs.py kernel/isrs_gen.c arch/i386/isrs_gen.S
 
 clean:
 	rm -f prometheos.kernel

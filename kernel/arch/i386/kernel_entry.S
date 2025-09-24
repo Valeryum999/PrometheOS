@@ -19,9 +19,9 @@ _entry:
     # we are running in the higher half of memory.
     call kernel_main
 
-hltloop:
-    hlt
-    jmp hltloop
+    hltloop:
+        hlt
+        jmp hltloop
 
 # 8k stack aligned to 16 bytes in .bss section
 .local stack_top, stack_bottom
