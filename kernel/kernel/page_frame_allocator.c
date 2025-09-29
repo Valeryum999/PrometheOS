@@ -19,8 +19,7 @@ void *kalloc_frame_int(){
         
     }
     frame_map[i] = USED;
-    return start_frame + (i*0x1000);//return the address of the page frame based on the location declared free
-    //in the array
+    return start_frame + (i*0x1000);
 }
 
 void *kalloc_frame(){
@@ -38,13 +37,5 @@ void *kalloc_frame(){
         allocate = 0;
     }
 
-    // printf("kernel ends at %x\n", &endkernel);
-    // printf("start frame at %x\n", start_frame);
     return (void *)physical_frames[pframe++];
 }
-
-// void kfree_frame(uint32_t *a){
-//     a = (uint32_t *) (a - start_frame); // get the offset from the first frame
-//     uint32_t index = (uint32_t)a / 0x1000;
-//     frame_map[index] = FREE;
-// }

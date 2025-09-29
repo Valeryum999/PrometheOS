@@ -2,7 +2,8 @@
 #define _KERNEL_ISR_H
 
 #include <stdint.h>
-
+#include <stdio.h>
+#include <stddef.h>
 typedef struct {
     uint32_t ds;
     uint32_t edi, esi, ebp, kern_esp, ebx, edx, ecx, eax;

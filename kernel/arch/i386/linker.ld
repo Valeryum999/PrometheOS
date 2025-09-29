@@ -19,6 +19,8 @@ SECTIONS
         *(.lowdata)
     }
 
+	end_lowtext = .;
+
 	LOWER_OFFSET = . - LOW_BASE;
 	HIGHER_OFFSET = KERNEL_BASE - . + LOWER_OFFSET;
     . = KERNEL_BASE + LOWER_OFFSET;
@@ -43,4 +45,6 @@ SECTIONS
 		*(COMMON)
 		*(.bss)
 	}
+
+	end_kernel = .;
 }

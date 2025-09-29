@@ -1,8 +1,7 @@
 #include <kernel/isr.h>
 #include <kernel/idt.h>
 #include <kernel/gdt.h>
-#include <stdio.h>
-#include <stddef.h>
+#include <kernel/pager.h>
 
 extern void ISR_InitializeGates();
 extern void kpanic();
@@ -44,13 +43,20 @@ static const char* const g_Exceptions[] = {
     ""
 };
 
+void PageFaultHandler(Registers *regs){
+    printf("how the fuck do i debug this\n");
+    kpanic();
+    map_page((void *)0x700000,(void *)regs->eax,0);
+}
+
 void init_ISR(){
     ISR_InitializeGates();
     for(int i=0; i<256; i++)
         enableIDTGate(i);
+    // g_ISRHandlers[14] = PageFaultHandler;
 }
 
-void __attribute__((cdecl)) ISR_Handler(Registers* regs){
+void ISR_Handler(Registers* regs){
     if(g_ISRHandlers[regs->interrupt] != NULL)
         g_ISRHandlers[regs->interrupt](regs);
     else if(regs->interrupt >= 32)
@@ -65,6 +71,5 @@ void __attribute__((cdecl)) ISR_Handler(Registers* regs){
         printf("  interrupt=%x errorcode=%x\n", regs->interrupt, regs->error);
         printf("KERNEL PANIC!\n");
         kpanic();
-    }
-        
+    }   
 }

@@ -2,7 +2,7 @@ DEFAULT_HOST!=../scripts/default-host.sh
 HOST?=DEFAULT_HOST
 HOSTARCH!=../scripts/target-triplet-to-arch.sh $(HOST)
 
-CFLAGS?=-O2 -g
+CFLAGS?=-Og -g
 CPPFLAGS?=
 LDFLAGS?=
 LIBS?=
@@ -19,6 +19,7 @@ LDFLAGS:=$(LDFLAGS)
 LIBS:=$(LIBS) -nostdlib -lk -lgcc
 
 ARCHDIR=arch/$(HOSTARCH)
+OBJDIR=../obj
 
 include $(ARCHDIR)/make.config
 
@@ -30,12 +31,12 @@ LIBS:=$(LIBS) $(KERNEL_ARCH_LIBS)
 KERNEL_OBJS=\
 $(KERNEL_ARCH_OBJS) \
 kernel/kernel.o \
-kernel/page_frame_allocator.o \
 kernel/pager.o \
 kernel/gdt.o \
 kernel/isrs_gen.o \
 kernel/idt.o \
 kernel/isr.o \
+kernel/buddy_allocator.o \
 
 OBJS=\
 $(ARCHDIR)/crti.o \
