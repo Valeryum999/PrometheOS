@@ -5,3 +5,4 @@ isodir
 obj
 sysroot
 .vscode
+.gdb_history

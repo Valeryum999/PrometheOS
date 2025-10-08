@@ -29,6 +29,8 @@ LIBK_CPPFLAGS:=$(LIBK_CPPFLAGS) $(KERNEL_ARCH_CPPFLAGS)
 
 FREEOBJS=\
 $(ARCH_FREEOBJS) \
+ctype/islower.o \
+ctype/toupper.o \
 stdio/printf.o \
 stdio/putchar.o \
 stdio/puts.o \
@@ -38,6 +40,8 @@ string/memcmp.o \
 string/memcpy.o \
 string/memmove.o \
 string/memset.o \
+string/strchr.o \
+string/strcpy.o \
 string/strlen.o \
 string/strrev.o \
 

@@ -7,7 +7,8 @@
 #include <kernel/gdt.h>
 #include <kernel/idt.h>
 #include <kernel/isr.h>
-#include <kernel/buddy_allocator.h>
+#include <kernel/page_frame_allocator.h>
+#include <fs/fat.h>
 
 extern uint32_t end_lowtext;
 extern uint32_t end_kernel;
@@ -17,8 +18,8 @@ void kernel_main(void) {
 	init_GDT();
 	init_IDT();
 	init_ISR();
+	init_stack();
 	printf("Hello World!\n");
-	map_page((void *)0xdeadb000,(void *)0xbeefd000,0);
-	printf("dereferencing %x: %x",(void *)0xdeadb000,*(uint32_t *)0xbeefd000);
-	printf("phys addr of 0xbeefd000 %x", get_physaddr((void *) 0xbeefd000));
+	DISK *disk = (DISK *) 0xc001b000; //0xc001b000 : 0xc0183000
+	FAT_Initialize(disk);
 }

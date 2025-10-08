@@ -36,7 +36,9 @@ kernel/gdt.o \
 kernel/isrs_gen.o \
 kernel/idt.o \
 kernel/isr.o \
-kernel/buddy_allocator.o \
+kernel/page_frame_allocator.o \
+kernel/fs/disk.o \
+kernel/fs/fat.o \
 
 OBJS=\
 $(ARCHDIR)/crti.o \

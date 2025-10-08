@@ -1,41 +1,46 @@
 #include <kernel/page_frame_allocator.h>
 #include <stdio.h>
 
-void *start_frame;
-uint8_t frame_map[MAX_PAGES];
-uint32_t physical_frames[MAX_PAGES]; 
+typedef struct {
+    uint8_t *arr[MAX_PAGES];
+    int top;
+} stack_t;
 
-void init_start_frame(){
-    start_frame = (void *)0x106000;
+static stack_t stack;
+
+static void push(uint8_t *value) {
+    if (stack.top == (MAX_PAGES - 1)) {
+        printf("Stack is full");
+        return;
+    }
+    stack.arr[++stack.top] = value;
+    printf("Pushed %x onto the stack\n", value);
 }
 
-void *kalloc_frame_int(){
-    start_frame = (void *)0x108000;
-    uint32_t i = 0;
-    while(frame_map[i] != FREE){
-        i++;
-        if(i == MAX_PAGES)
-            return NULL;
-        
+static uint8_t *pop() {
+    if (stack.top == -1) {
+        printf("Stack is empty\n");
+        return NULL;
     }
-    frame_map[i] = USED;
-    return start_frame + (i*0x1000);
+    uint8_t *popped = stack.arr[stack.top];
+    stack.top--;
+    printf("Popped %x from the stack\n", popped);
+    return popped;
 }
 
-void *kalloc_frame(){
-    static uint8_t allocate = 1;//whether or not we are going to allocate a new set of preframes
-    static uint8_t pframe = 0;
-    
-    if(pframe == 20)
-        allocate = 1;
-
-    if(allocate == 1){
-        for(int i = 0; i<20; i++){
-            physical_frames[i] = (uint32_t) kalloc_frame_int();
-        }
-        pframe = 0;
-        allocate = 0;
+void init_stack(){
+    stack.top = -1;
+    for(int i=0; i<MAX_PAGES; i++){
+        // push((uint8_t *)(0x500000 + i*PAGE_SIZE));
+        stack.arr[MAX_PAGES-1-i] = (uint8_t *)(0x500000 + i*PAGE_SIZE);
     }
+    stack.top = MAX_PAGES - 1;
+}
 
-    return (void *)physical_frames[pframe++];
+void *malloc(){
+    return (void *) pop();
+}
+
+void free(void *ptr){
+    push((uint8_t *)ptr);
 }

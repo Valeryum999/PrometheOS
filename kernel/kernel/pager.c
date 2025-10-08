@@ -86,7 +86,10 @@ void map_page(void *physaddr, void *virtualaddr, unsigned int flags) {
     uint32_t page_table_index = (uint32_t)virtualaddr >> 12 & 0x3FF;
 
     uint32_t *page_table = (uint32_t *)(0xffc00000 + page_directory_index*PAGE_SIZE);
-
+    if(page_table[page_table_index] != 1){
+        //TODO malloc 1 page
+    }
+    //OTHERWISE swap
     // printf("Where tf is this page table %x", page_table);
     page_table[page_table_index] = ((uint32_t)physaddr) | (flags & 0xFFF) | PAGE_PRESENT;
 
