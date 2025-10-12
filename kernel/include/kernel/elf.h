@@ -209,6 +209,9 @@ typedef struct {
     ELFHeader *header;
     ELF32ProgramHeader *programHeaders;
     ELF32SectionHeader *sectionHeaders;
+    ELF32_Dyn *dynamicEntries;
+    ELF32_Rel *relocations;
+    ELF32_Sym *symbols;
 } ELF32_File;
 
 typedef struct {
