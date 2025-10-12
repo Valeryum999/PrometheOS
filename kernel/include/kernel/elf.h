@@ -179,6 +179,8 @@ enum SymType {
     Object = 1,
     Func = 2,
     Section = 3,
+    File = 4,
+    IFunc = 10,
 };
 
 typedef struct {
@@ -202,5 +204,28 @@ typedef struct {
 	uint32_t	sh_addralign;	/* Alignment in bytes. */
 	uint32_t	sh_entsize;	/* Size of each entry in section. */
 } ELF32SectionHeader;
+
+typedef struct {
+    ELFHeader *header;
+    ELF32ProgramHeader *programHeaders;
+    ELF32SectionHeader *sectionHeaders;
+} ELF32_File;
+
+typedef struct {
+    uint32_t page;
+    uint32_t size;
+    uint32_t flags;
+} MemoryMap;
+
+typedef struct {
+    const char *path;
+    uint32_t baseAddr;
+    ELF32_File *elfFile;
+    MemoryMap *memoryMaps;
+} ObjectFile;
+
+typedef struct {
+    ObjectFile *objects;
+} Process;
 
 #endif
