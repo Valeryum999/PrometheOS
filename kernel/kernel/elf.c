@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <sys/mman.h>
 #include <elf.h>
+#include <unistd.h>
 
 const char *elfTypeStr[5] = {
     "UNKNOWN",
@@ -49,7 +50,7 @@ const char *dynTagStr[31] = {
 
 const char *relTypeStr[9] = {
     "None",
-    "x32",
+    "_32",
     "PC32",
     "GOT32",
     "PLT32",
@@ -65,11 +66,18 @@ const char *symBindStr[3] = {
     "Weak",
 };
 
-const char *symTypeStr[4] = {
+const char *symTypeStr[11] = {
     "None",
     "Object",
     "Func",
-    "Section"
+    "Section",
+    "File",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "IFunc"
 };
 
 void ELF_printHeader(ELFHeader *header){
@@ -194,19 +202,22 @@ void ELF_printDyn(ELF32_Dyn *dyn){
 
     printf(" %d",dyn->d_tag);
 
-    printf(" addr: %04x val: %04x\n",dyn->d_ptr, dyn->d_val);
+    printf(" val: %08x\n", dyn->d_val);
 }
 
 void ELF_printRel(ELF32_Rel *rel){
     printf("Relocation offset: %08x, type: %s, symbol: %x\n", rel->r_offset, relTypeStr[rel->r_type], rel->r_sym);
 }
 
-char *ELF_getString(size_t offset, uint32_t baseAddr, uint32_t strTab){
-    return (char *)(baseAddr + strTab + offset);
+void ELF_getString(uint32_t offset, ObjectFile *object, char *buf){
+    strcpy(buf, (char *)(object->baseAddr + object->elfFile->strTable + offset));
 }
 
-void ELF_printSym(ELF32_Sym *sym, uint32_t baseAddr, uint32_t strTab){
-    printf("%08x\t%x\t%s\t%s\t%d\t%s",sym->st_value, sym->st_size, symTypeStr[sym->st_info >> 4], symBindStr[sym->st_info & 0xf], sym->st_shndx, ELF_getString(sym->st_name, baseAddr, strTab));
+void ELF_printSym(ELF32_Sym *sym, ObjectFile *object){
+    char buf[255];
+    ELF_getString(sym->st_name, object, buf);
+    printf("Value\t\tSize\tType\tBind\tNdx\tName\n");
+    printf("%08x\t%x\t%s\t%s\t%d\t%s\n",sym->st_value, sym->st_size, symTypeStr[sym->st_info & 0x0f], symBindStr[sym->st_info >> 4], sym->st_shndx, buf);
 }
 
 void ELF_parseHeader(ELF32_File *ELFfile, FILE *file){
@@ -256,121 +267,284 @@ ELF32SectionHeader *findSectionStartingAt(ELF32_File *ELFfile, uint32_t addr){
     return NULL;
 }
 
-void ELF_parseFile(ELF32_File *ELFfile, FILE *file){
-    ELFfile->header = malloc(sizeof(ELFHeader));
-    ELF_parseHeader(ELFfile, file);
-    // ELF_printHeader(ELFfile->header);
-    ELFfile->programHeaders = malloc(ELFfile->header->ProgramHeaderTableEntrySize * ELFfile->header->ProgramHeaderTableEntryCount);
-    ELFfile->sectionHeaders = malloc(ELFfile->header->SectionHeaderTableEntrySize * ELFfile->header->SectionHeaderTableEntryCount);
-    printf("Parsing program headers...\n");
-    ELF_parseProgramHeaders(ELFfile, file);
-    printf("Parsing section headers...\n");
-    ELF_parseSectionHeaders(ELFfile, file);
+ELF32ProgramHeader *findProgramHeader(ELF32_File *ELFfile, enum ELFProgramType type){
+    for(int i=0; i<ELFfile->header->ProgramHeaderTableEntryCount; i++){
+        if(ELFfile->programHeaders[i].Type == type){
+            return &ELFfile->programHeaders[i];
+        }
+    }
+    return NULL;
 }
 
-int ELF_load(ObjectFile *object, FILE *file){
-    ELF_parseFile(object->elfFile, file);
-    if(!object->elfFile->header->ProgramEntryPosition) object->baseAddr = 0x400000;
-    size_t dynEntries = 0;
-    size_t relocationsEntries = 0;
-    uint32_t strTab = 0x0;
-    uint32_t symTab = 0x0;
+ELF32_Dyn *findDynamicEntry(ELF32_File *ELFfile, enum DynamicTag dynamicTag){
+    for(int i=0; i<ELFfile->dynEntries; i++){
+        if(ELFfile->dynamicEntries[i].d_tag == dynamicTag){
+            return &ELFfile->dynamicEntries[i];
+        }
+    }
+    return NULL;
+}
 
-    for(int i=0; i<object->elfFile->header->ProgramHeaderTableEntryCount; i++){
-        if(object->elfFile->programHeaders[i].Type == ELF_PROGRAM_TYPE_DYNAMIC){
-            int j = -1;
-            object->elfFile->dynamicEntries = malloc(object->elfFile->programHeaders[i].FileSize);
-            fseek(file, object->elfFile->programHeaders[i].Offset, SEEK_SET);
-            do{
-                j++;
-                fread(&object->elfFile->dynamicEntries[j], sizeof(ELF32_Dyn),1,file);
-                // ELF_printDyn(&dynamic[j]);
-                if(object->elfFile->dynamicEntries[j].d_tag == RelSz){
-                    ELF_printDyn(&object->elfFile->dynamicEntries[j]);
-                    object->elfFile->relocations = malloc(object->elfFile->dynamicEntries[j].d_val);
-                    relocationsEntries += object->elfFile->dynamicEntries[j].d_val / sizeof(ELF32_Rel);
-                    printf("Relocation size: %d\n", object->elfFile->dynamicEntries[j].d_val);
-                    printf("sizeof ELF32Rel %d\n", sizeof(ELF32_Rel));
-                } else if(object->elfFile->dynamicEntries[j].d_tag == Flags1) {
-                    object->baseAddr = 0x400000;
-                } else if(object->elfFile->dynamicEntries[j].d_tag == StrTab){
-                    strTab = object->elfFile->dynamicEntries[j].d_val;
-                } else if(object->elfFile->dynamicEntries[j].d_tag == SymTab){
-                    symTab = object->elfFile->dynamicEntries[j].d_val;
-                }
-                dynEntries++;
-            } while(object->elfFile->dynamicEntries[j].d_tag != Null);
-            break;
+uint32_t convex_hull(uint32_t a_start, size_t a_size, uint32_t b_start, size_t b_size, size_t *sum){
+    if(a_start < b_start){
+        *sum += b_start + b_size - a_start;
+        return a_start;
+    } else {
+        *sum += a_start + a_size - b_start;
+        return b_start;
+    }
+}
+
+void ELF_printMapping(void *addr, uint32_t size, uint32_t flags, uint32_t offset, void *page){
+    printf("Mapping file @ %08x..%08x with ", addr, addr + size);
+    ELF_printPermissions(flags);
+    printf(" with offset %08x, page %08x\n", offset, page);
+}
+
+void ELF_parseFile(ObjectFile *object, FILE *file){
+    object->elfFile->header = malloc(sizeof(ELFHeader));
+    ELF_parseHeader(object->elfFile, file);
+    object->elfFile->programHeaders = malloc(object->elfFile->header->ProgramHeaderTableEntrySize * object->elfFile->header->ProgramHeaderTableEntryCount);
+    object->elfFile->sectionHeaders = malloc(object->elfFile->header->SectionHeaderTableEntrySize * object->elfFile->header->SectionHeaderTableEntryCount);
+    printf("Parsing program headers...\n");
+    ELF_parseProgramHeaders(object->elfFile, file);
+    printf("Parsing section headers...\n");
+    ELF_parseSectionHeaders(object->elfFile, file);
+
+    object->elfFile->dynEntries = 0;
+    object->elfFile->relEntries = 0;
+
+    ELF32ProgramHeader *dynamic = findProgramHeader(object->elfFile, ELF_PROGRAM_TYPE_DYNAMIC);
+    if(dynamic){
+        printf("Parsing dynamic entries...\n");
+        int j = -1;
+        object->elfFile->dynamicEntries = malloc(dynamic->FileSize);
+        fseek(file, dynamic->Offset, SEEK_SET);
+        do{
+            j++;
+            fread(&object->elfFile->dynamicEntries[j], sizeof(ELF32_Dyn),1,file);
+            if(object->elfFile->dynamicEntries[j].d_tag == RelSz){
+                object->elfFile->relocations = malloc(object->elfFile->dynamicEntries[j].d_val);
+                object->elfFile->relEntries += object->elfFile->dynamicEntries[j].d_val / sizeof(ELF32_Rel); 
+            } else if(object->elfFile->dynamicEntries[j].d_tag == StrTab){
+                object->elfFile->strTable = object->elfFile->dynamicEntries[j].d_val;
+            } else if(object->elfFile->dynamicEntries[j].d_tag == SymTab){
+                object->elfFile->symTable = object->elfFile->dynamicEntries[j].d_val;
+            }
+            object->elfFile->dynEntries++;
+        } while(object->elfFile->dynamicEntries[j].d_tag != Null);
+    }
+
+    ELF32SectionHeader *symTable = findSectionStartingAt(object->elfFile, object->elfFile->symTable);
+    if(symTable && symTable->sh_size != 0){
+        object->elfFile->symbols = malloc(symTable->sh_size);
+        fseek(file, object->elfFile->symTable, SEEK_SET);
+        for(int i=0; i<symTable->sh_size / symTable->sh_entsize; i++){
+            fread(&object->elfFile->symbols[i],sizeof(ELF32_Sym), 1, file);
         }
     }
 
+    ELF32_Dyn *rel = findDynamicEntry(object->elfFile, Rel);
+    if(rel){
+        fseek(file, rel->d_val,SEEK_SET);
+        for(int j=0; j<object->elfFile->relEntries; j++){
+            fread(&object->elfFile->relocations[j], sizeof(ELF32_Rel), 1, file);
+        }
+    }
+
+    size_t sum = 0;
+    uint32_t previousAddr = 0;
+    size_t previousSize = 0;
+    for(int i=0; i<object->elfFile->header->ProgramHeaderTableEntryCount; i++){
+        if(object->elfFile->programHeaders[i].Type == ELF_PROGRAM_TYPE_LOAD){
+            if(object->elfFile->programHeaders[i].MemorySize == 0) continue;
+            if(!previousAddr && !previousSize){
+                previousAddr = object->elfFile->programHeaders[i].VirtualAddress;
+                previousSize = object->elfFile->programHeaders[i].MemorySize;
+            }
+            convex_hull(object->elfFile->programHeaders[i].VirtualAddress,
+                        object->elfFile->programHeaders[i].MemorySize,
+                        previousAddr,
+                        previousSize,
+                        &sum);
+            previousAddr = object->elfFile->programHeaders[i].VirtualAddress;
+            previousSize = object->elfFile->programHeaders[i].MemorySize;
+        }
+    }
+    object->size = sum;
+}
+
+int ELF_load(ObjectFile *object, FILE *file){
+    object->baseAddr = (uint32_t)mmap(NULL, 
+                                      object->size,
+                                      PROT_READ | PROT_WRITE,
+                                      MAP_PRIVATE, 
+                                      fileno(file), 
+                                      0);
     for(int i=0; i<object->elfFile->header->ProgramHeaderTableEntryCount; i++){
         if(object->elfFile->programHeaders[i].Type == ELF_PROGRAM_TYPE_LOAD){
             if(object->elfFile->programHeaders[i].MemorySize == 0) continue;
             void *addr = (void *)(object->baseAddr + object->elfFile->programHeaders[i].VirtualAddress);
-            printf("Mapping segment @ %08x..%08x with ",addr, addr+object->elfFile->programHeaders[i].MemorySize);
-            ELF_printPermissions(object->elfFile->programHeaders[i].Flags);
-            printf("\n");
             void *page = (void *)align_page((size_t)addr);
-            mmap(page,object->elfFile->programHeaders[i].MemorySize + (uint32_t)addr % 0x1000, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, 0, 0);
-            printf("Copying segment data...\n");
-            fseek(file, object->elfFile->programHeaders[i].Offset,SEEK_SET);
-            fread(addr, object->elfFile->programHeaders[i].FileSize, 1, file);
-            printf("Adjusting permissions...\n");
-            mprotect(page,object->elfFile->programHeaders[i].MemorySize, ELF_to_MMAP_perm(object->elfFile->programHeaders[i].Flags));
+            uint32_t padding = (uint32_t)(addr - page);
+            uint32_t offset = object->elfFile->programHeaders[i].Offset - padding;
+            ELF_printMapping(addr,
+                            object->elfFile->programHeaders[i].MemorySize,
+                            object->elfFile->programHeaders[i].Flags,
+                            offset,
+                            page);
+            mmap(page, 
+                object->elfFile->programHeaders[i].MemorySize,
+                ELF_to_MMAP_perm(object->elfFile->programHeaders[i].Flags),
+                MAP_PRIVATE | MAP_FIXED, 
+                fileno(file), 
+                offset);
         }
     }
-
-    ELF32SectionHeader *symTable = findSectionStartingAt(object->elfFile, symTab);
-    if(symTable->sh_size != 0){
-        printf("symTable size: %d and entry size: %d\n", symTable->sh_size, symTable->sh_entsize);
-        object->elfFile->symbols = malloc(symTable->sh_size);
-        fseek(file, symTab, SEEK_SET);
-        printf("Num   Value     Size    Type    Bind    Ndx     Name\n");
-        for(int i=0; i<symTable->sh_size / symTable->sh_entsize; i++){
-            fread(&object->elfFile->symbols[i],sizeof(ELF32_Sym), 1, file);
-            printf("%d    ",i);
-            ELF_printSym(&object->elfFile->symbols[i], object->baseAddr, strTab);
-            printf("\n");
-        }
     
-        // ELF32_Sym *msg = &symbols[1];
-        // printf("msg contents @ %08x : %s\n", msg->st_value, (char *)(baseAddr + msg->st_value));
-    }
-
-    for(int i=0; i<dynEntries; i++){
-        // ELF_printDyn(&dynamic[i]);
-        if(object->elfFile->dynamicEntries[i].d_tag == Rel){
-            fseek(file, object->elfFile->dynamicEntries[i].d_val,SEEK_SET);
-            for(int j=0; j<relocationsEntries; j++){
-                fread(&object->elfFile->relocations[j], sizeof(ELF32_Rel), 1, file);
-                // ELF_printRel(&relocations[j]);
-                void *page = (void *)align_page(object->baseAddr + object->elfFile->relocations[0].r_offset);
-                mprotect(page, 0x1, PROT_READ | PROT_WRITE);
-                printf("Applying relocation @ %08x \n", object->baseAddr + object->elfFile->relocations[j].r_offset);
-                uint32_t *buffer = (uint32_t *)(object->baseAddr+object->elfFile->relocations[j].r_offset);
-                *buffer = object->baseAddr + *buffer;
-                mprotect(page, 0x1, PROT_READ | PROT_EXEC);
-            }
-        } else if(object->elfFile->dynamicEntries[i].d_tag == Needed){
-            printf("Needed: %s\n", ELF_getString(object->elfFile->dynamicEntries[i].d_val, object->baseAddr, strTab));
-        } else if(object->elfFile->dynamicEntries[i].d_tag == RPath){
-            printf("RPath: %s\n", ELF_getString(object->elfFile->dynamicEntries[i].d_val, object->baseAddr, strTab));
-        }
-    }
-
-    printf("Terminated with mappings, now jumping...\n");
-    asm volatile("jmp *%0"::"r"(object->baseAddr + object->elfFile->header->ProgramEntryPosition));
     return 0;
 }
 
-void load_Object(const char* path){
-    printf("Loading %s\n",path);
-    FILE *file = fopen(path, "rb");
-    ObjectFile object;
-    object.elfFile = malloc(sizeof(ELF32_File));
-    object.baseAddr = 0x0;
-    ELF_load(&object,file);
+ELF32_Sym *ELF_findSymbol(Process *process, const char* name, size_t ignore, size_t *lib){
+    char buf[255];
+    for(int i=0; i<process->numObjects; i++){
+        ELF32SectionHeader *symTable = findSectionStartingAt(process->objects[i]->elfFile, process->objects[i]->elfFile->symTable);
+        for(int j=0; j<symTable->sh_size / symTable->sh_entsize; j++){
+            ELF_getString(process->objects[i]->elfFile->symbols[j].st_name, process->objects[i], buf);
+            if(!strcmp(buf, name) && i != ignore){
+                printf("Found symbol for %s\n",name);
+                ELF_printSym(&process->objects[i]->elfFile->symbols[j], process->objects[i]);
+                *lib = i;
+                return &process->objects[i]->elfFile->symbols[j];
+            }
+        }
+    }
+    return NULL;
+}
+
+int ELF_applyRelocations(Process *process){
+    char buf[255];
+    for(int i=process->numObjects-1; i>=0; i--){
+        if(!process->objects[i]->elfFile->relEntries){
+            printf("No relocations found!\n");
+            continue;
+        }
+        for(int j=0; j<process->objects[i]->elfFile->relEntries; j++){
+            ELF_printRel(&process->objects[i]->elfFile->relocations[j]);
+            void *page = (void *)align_page(process->objects[i]->baseAddr + process->objects[i]->elfFile->relocations[j].r_offset);
+            mprotect(page, 0x1, PROT_READ | PROT_WRITE);
+            ELF32_Sym *symbol = &process->objects[i]->elfFile->symbols[process->objects[i]->elfFile->relocations[j].r_sym];
+            if(process->objects[i]->elfFile->relocations[j].r_type == _32){
+                ELF_printSym(symbol, process->objects[i]);
+                uint32_t *relocationAddr = (uint32_t *)(process->objects[i]->baseAddr + process->objects[i]->elfFile->relocations[j].r_offset);
+                printf("Applying relocation @ %08x \n", relocationAddr);
+                *relocationAddr = process->objects[i]->baseAddr + symbol->st_value;
+                mprotect(page, 0x1, PROT_READ | PROT_EXEC); //to fix
+            } else if(process->objects[i]->elfFile->relocations[j].r_type == COPY){
+                ELF_getString(symbol->st_name, process->objects[i],buf);
+                size_t lib;
+                ELF32_Sym *toCopy = ELF_findSymbol(process, buf, i, &lib);
+                void *src = (void *)(process->objects[lib]->baseAddr + toCopy->st_value);
+                void *dst = (void *)(process->objects[i]->baseAddr + process->objects[i]->elfFile->relocations[j].r_offset);
+                memcpy(dst, src, symbol->st_size);
+            }
+        }
+    }
+
+    return 0;
+}
+
+int isSearchPathLoaded(Process *process, const char* path){
+    for(int i=0; i<process->numSearchPaths; i++){
+        if(!strcmp(process->searchPaths[i], path)){
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
+int isObjectLoaded(Process *process, const char* path){
+    for(int i=0; i<process->numObjects; i++){
+        if(!strcmp(process->objects[i]->path, path)){
+            return 1;
+        }
+    }
+    return 0;
+}
+
+void load_Object(Process *process, FILE *file){
+    process->objects[process->numObjects] = malloc(sizeof(ObjectFile));
+    process->objects[process->numObjects]->elfFile = malloc(sizeof(ELF32_File));
+    process->objects[process->numObjects]->baseAddr = 0x0;
+    ELF_parseFile(process->objects[process->numObjects],file);
+    ELF_load(process->objects[process->numObjects], file);
+}
+
+void enqueue(queue_t *queue, char *object){
+    queue->arr[queue->rear++] = object;
+}
+
+char *dequeue(queue_t *queue){
+    return queue->arr[queue->front++];
+}
+
+int isQueueEmpty(queue_t *queue){
+    return queue->front == queue->rear;
+}
+
+void load_Object_and_Dependencies(Process *process, char *path){
+    int currObj = 0;
+
+    queue_t queue;
+    queue.front = 0;
+    queue.rear = 0;
+
+    enqueue(&queue, path);
+
+    char *depPath = malloc(255);
+    while(!isQueueEmpty(&queue)){
+        strcpy(depPath,dequeue(&queue));
+        FILE *file = fopen(depPath, "rb");
+        if(isObjectLoaded(process, depPath)){
+            printf("Object %s is already loaded\n", depPath);
+            continue;
+        }
+        load_Object(process, file);
+        realpath(depPath, process->objects[currObj]->path);
+        ELF32_Dyn *rpath = findDynamicEntry(process->objects[currObj]->elfFile, RPath);
+        char buf[255];
+        if(rpath){
+            ELF_getString(rpath->d_val, process->objects[currObj], buf);
+            realpath(buf, buf);
+            char *pos = strchr(buf, '$');
+            if(pos) *(pos) = '\0';
+            if(!isSearchPathLoaded(process, buf)) {
+                process->searchPaths[process->numSearchPaths] = malloc(255);
+                strcpy(process->searchPaths[process->numSearchPaths], buf);
+                process->numSearchPaths++;
+            }
+        }
+
+        for(int i=0; i<process->objects[currObj]->elfFile->dynEntries; i++){
+            if(process->objects[currObj]->elfFile->dynamicEntries[i].d_tag == Needed){
+                ELF_getString(process->objects[currObj]->elfFile->dynamicEntries[i].d_val, process->objects[currObj], buf);
+                printf("Needed: %s\n",buf);
+                for(int i=0; i<process->numSearchPaths; i++){
+                    strcpy(depPath, process->searchPaths[i]);
+                    strcpy(depPath + strlen(process->searchPaths[i]), buf);
+                    if(access(depPath, F_OK) != 0){
+                        printf("File %s not found!\n", depPath);
+                        continue;
+                    }
+                    enqueue(&queue, depPath);
+                    depPath = malloc(255);
+                    
+                }
+            }
+        }
+        currObj = ++process->numObjects;
+    }
 }
 
 int main(int argc, char **argv){
@@ -378,6 +552,26 @@ int main(int argc, char **argv){
         printf("Usage: %s <file>\n",argv[0]);
         return -1;
     }
-    load_Object(argv[1]);
+
+    Process process;
+    process.numObjects = 0;
+    process.searchPaths[0] = "/usr/lib32/";
+    process.numSearchPaths = 1;
+    process.objects = malloc(sizeof(void *)*10);
+    load_Object_and_Dependencies(&process, argv[1]);
+    ELF_applyRelocations(&process);
+    printf("Process: \n");
+    printf("    objects: \n");
+    for(int i=0; i<process.numObjects; i++){
+        printf("        Object: \n");
+        printf("            path: '%s'\n", process.objects[i]->path);
+        printf("            mem_range: %08x...%08x\n", process.objects[i]->baseAddr, process.objects[i]->baseAddr + process.objects[i]->size);
+    }
+    printf("    search_paths:\n");
+    for(int i=0; i<process.numSearchPaths; i++){
+        printf("        '%s'\n", process.searchPaths[i]);
+    }
+    asm volatile("jmp *%0"::"r"(process.objects[0]->baseAddr + process.objects[0]->elfFile->header->ProgramEntryPosition));
+    asm __volatile__("int $3");
     return 0;
 }

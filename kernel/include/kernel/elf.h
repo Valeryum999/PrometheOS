@@ -4,6 +4,7 @@
 #define ELF_MAGIC 0x7f454c46
 
 #include <stdint.h>
+#include <stddef.h>
 
 typedef struct {
     uint32_t Magic;
@@ -96,8 +97,7 @@ enum ELFSegmentPermission{
 
 typedef struct{
     int32_t d_tag;
-    uint16_t d_val;
-    uint16_t d_ptr;
+    uint32_t d_val;
 } ELF32_Dyn;
 
 enum ELFSegmentContents{
@@ -158,7 +158,7 @@ typedef struct {
 
 enum RelType32{
     None = 0,
-    x32,
+    _32,
     PC32,
     GOT32,
     PLT32,
@@ -212,6 +212,10 @@ typedef struct {
     ELF32_Dyn *dynamicEntries;
     ELF32_Rel *relocations;
     ELF32_Sym *symbols;
+    uint32_t strTable;
+    uint32_t symTable;
+    size_t dynEntries;
+    size_t relEntries;
 } ELF32_File;
 
 typedef struct {
@@ -221,14 +225,23 @@ typedef struct {
 } MemoryMap;
 
 typedef struct {
-    const char *path;
+    char path[255];
     uint32_t baseAddr;
+    size_t size;
     ELF32_File *elfFile;
-    MemoryMap *memoryMaps;
 } ObjectFile;
 
 typedef struct {
-    ObjectFile *objects;
+    ObjectFile **objects;
+    char *searchPaths[255];
+    size_t numObjects;
+    size_t numSearchPaths;
 } Process;
+
+typedef struct {
+    char *arr[100]; //tbd
+    uint8_t front;
+    uint8_t rear;
+} queue_t;
 
 #endif
