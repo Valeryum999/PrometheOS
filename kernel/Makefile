@@ -7,6 +7,7 @@ CPPFLAGS?=
 LDFLAGS?=
 LIBS?=
 
+OBJDIR?=../out
 DESTDIR?=
 PREFIX?=/usr/local
 EXEC_PREFIX?=$(PREFIX)
@@ -40,33 +41,54 @@ kernel/page_frame_allocator.o \
 kernel/fs/disk.o \
 kernel/fs/fat.o \
 
-OBJS=\
+TEMPOBJS = \
 $(ARCHDIR)/crti.o \
 $(ARCHDIR)/crtbegin.o \
 $(KERNEL_OBJS) \
 $(ARCHDIR)/crtend.o \
-$(ARCHDIR)/crtn.o \
+$(ARCHDIR)/crtn.o
+OBJS=$(patsubst %.o,$(OBJDIR)/%.o,$(TEMPOBJS))
 
-LINK_LIST=\
+TEMPLINK_LIST=\
 $(LDFLAGS) \
 $(ARCHDIR)/crti.o \
 $(ARCHDIR)/crtbegin.o \
 $(KERNEL_OBJS) \
 $(LIBS) \
 $(ARCHDIR)/crtend.o \
-$(ARCHDIR)/crtn.o \
+$(ARCHDIR)/crtn.o
+LINK_LIST=$(patsubst %.o,$(OBJDIR)/%.o,$(TEMPLINK_LIST))
 
 .PHONY: all clean install install-headers install-kernel
-.SUFFIXES: .o .c .S
+.SUFFIXES:
 
 all: prometheos.kernel
 
 prometheos.kernel: $(OBJS) $(ARCHDIR)/linker.ld
 	$(CC) -T $(ARCHDIR)/linker.ld -o $@ $(CFLAGS) $(LINK_LIST)
-	grub-file --is-x86-multiboot prometheos.kernel
+	grub-file --is-x86-multiboot $@
+
+$(OBJDIR)/%.o: %.S
+	echo $@ "SESSO!"
+
+$(OBJDIR)/%.o: %.c
+	@mkdir -p $(shell dirname $@)
+	$(CC) -MD -c $< -o $@ -std=gnu11 $(CFLAGS) $(CPPFLAGS)
+
+$(OBJDIR)/%.o: %.S
+	@mkdir -p $(shell dirname $@)
+	$(CC) -MD -c $< -o $@ $(CFLAGS) $(CPPFLAGS)
+
+#$(OBJDIR)/%.o: arch/%.c
+#	@mkdir -p $(shell dirname $@)
+#	$(CC) -MD -c $< -o $@ -std=gnu11 $(CFLAGS) $(CPPFLAGS)
+#
+#$(OBJDIR)/%.o: arch/%.S
+#	@mkdir -p $(shell dirname $@)
+#	$(CC) -MD -c $< -o $@ -std=gnu11 $(CFLAGS) $(CPPFLAGS)
 
 
-$(ARCHDIR)/crtbegin.o $(ARCHDIR)/crtend.o:
+$(OBJDIR)/$(ARCHDIR)/crtbegin.o $(OBJDIR)/$(ARCHDIR)/crtend.o:
 	OBJ=`$(CC) $(CFLAGS) $(LDFLAGS) -print-file-name=$(@F)` && cp "$$OBJ" $@
 
 .c.o:

@@ -7,6 +7,7 @@ mkdir -p isodir/boot
 mkdir -p isodir/boot/grub
 
 cp sysroot/boot/prometheos.kernel isodir/boot/prometheos.kernel
+cp ../fat12.img sysroot/boot/prometheos.initrd
 cp sysroot/boot/prometheos.initrd isodir/boot/prometheos.initrd
 cat > isodir/boot/grub/grub.cfg << EOF
 menuentry "prometheos" {
