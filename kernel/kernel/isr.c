@@ -117,3 +117,8 @@ void ISR_Handler(Registers* regs){
         kpanic();
     }   
 }
+
+void ISR_RegisterHandler(int interrupt, ISRHandler handler){
+    g_ISRHandlers[interrupt] = handler;
+    enableIDTGate(interrupt);
+}

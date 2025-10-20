@@ -37,7 +37,12 @@ kernel/gdt.o \
 kernel/isrs_gen.o \
 kernel/idt.o \
 kernel/isr.o \
+kernel/io.o \
+kernel/irq.o \
+kernel/keyboard.o \
+kernel/cursor.o \
 kernel/page_frame_allocator.o \
+kernel/pic.o \
 kernel/fs/disk.o \
 kernel/fs/fat.o \
 kernel/elf32.o \

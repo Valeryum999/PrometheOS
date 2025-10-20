@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include <kernel/tty.h>
+#include <kernel/cursor.h>
 
 #include "vga.h"
 
@@ -73,6 +74,7 @@ void terminal_putchar(char c) {
 void terminal_write(const char* data, size_t size) {
 	for (size_t i = 0; i < size; i++)
 		terminal_putchar(data[i]);
+	update_cursor(terminal_column, terminal_row);
 }
 
 void terminal_writestring(const char* data) {
