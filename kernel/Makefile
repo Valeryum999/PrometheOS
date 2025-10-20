@@ -40,6 +40,8 @@ kernel/isr.o \
 kernel/page_frame_allocator.o \
 kernel/fs/disk.o \
 kernel/fs/fat.o \
+kernel/elf32.o \
+kernel/process.o \
 
 TEMPOBJS = \
 $(ARCHDIR)/crti.o \

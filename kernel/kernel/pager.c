@@ -1,5 +1,4 @@
 #include <kernel/pager.h>
-#include <stdio.h>
 
 uint32_t page_directory[1024] __attribute__((aligned(4096), section(".lowdata")));
 uint32_t first_page_table[1024] __attribute__((aligned(4096), section(".lowdata")));
@@ -25,7 +24,7 @@ __attribute__((section(".lowtext"))) void init_paging(void){
 
     //alloc kernel page tables
     for(int i=768; i<=last_page_directory_entry_kernel; i++){
-        int page_directory_increment = PAGE_DIRECTORY_SIZE * (i-768); 
+        int page_directory_increment = PAGE_SIZE * (i-768); 
         uint32_t *kernel_page_table = (uint32_t *)(start_frame + i * PAGE_SIZE);
         //TODO: stop allocating page tables when all the kernel is mapped (for now it maps even beyond until the end of the pd)
         for(int j = 0; j < 1024; j++){
@@ -57,15 +56,6 @@ __attribute__((section(".lowtext"))) void enable_paging() {
     __asm__ volatile("mov %0, %%cr0" :: "r"(cr0));
 }
 
-void kalloc_page_tables(uint32_t *virtualaddr){
-    // uint32_t *page_table_entry = kalloc_frame();
-    // uint32_t page_directory_index = (uint32_t)virtualaddr >> 22;
-    // for(int i = 0; i < 1024; i++){
-    //     page_table_entry[i] = ((uint32_t)page_table_entry + i * 0x1000) | PAGE_WRITABLE | PAGE_PRESENT;
-    // }
-    // virtual_page_directory[page_directory_index] = ((uint32_t)page_table_entry) | PAGE_WRITABLE | PAGE_PRESENT;
-}
-
 void *get_physaddr(void *virtualaddr) {
     uint32_t page_directory_index = (uint32_t)virtualaddr >> 22;
     uint32_t page_table_index = (uint32_t)virtualaddr >> 12 & 0x3FF;
@@ -79,20 +69,27 @@ void *get_physaddr(void *virtualaddr) {
     return (void *)((page_table[page_table_index] & ~0xFFF) + ((uint32_t)virtualaddr & 0xFFF));
 }
 
-void map_page(void *physaddr, void *virtualaddr, unsigned int flags) {
+void malloc_page_table(uint32_t page_directory_index){
+    uint32_t *page_table = (uint32_t *)malloc();
+    virtual_page_directory[page_directory_index] = ((uint32_t)page_table) | PAGE_USER | PAGE_WRITABLE | PAGE_PRESENT;
+}
+
+void *mmap(void *virtualaddr, unsigned int flags) {
     //TODO: Make sure that both addresses are page-aligned.
 
     uint32_t page_directory_index = (uint32_t)virtualaddr >> 22;
     uint32_t page_table_index = (uint32_t)virtualaddr >> 12 & 0x3FF;
 
     uint32_t *page_table = (uint32_t *)(0xffc00000 + page_directory_index*PAGE_SIZE);
-    if(page_table[page_table_index] != 1){
-        //TODO malloc 1 page
+    void *physaddr = malloc();
+    if(!(virtual_page_directory[page_directory_index] & PAGE_PRESENT)){
+        malloc_page_table(page_directory_index);
     }
     //OTHERWISE swap
-    // printf("Where tf is this page table %x", page_table);
     page_table[page_table_index] = ((uint32_t)physaddr) | (flags & 0xFFF) | PAGE_PRESENT;
 
+
+    return virtualaddr;
     // printf("page table entry at %d: %x\n",page_table_index,page_table[page_table_index]);
     // Now you need to flush the entry in the TLB
     // or you might not notice the change.

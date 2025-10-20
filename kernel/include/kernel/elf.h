@@ -5,6 +5,9 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <stdio.h>
+#include <string.h>
+#include <kernel/pager.h>
 
 typedef struct {
     uint32_t Magic;
@@ -100,8 +103,25 @@ typedef struct{
     uint32_t d_val;
 } ELF32_Dyn;
 
-enum ELFSegmentContents{
-    ELF_DYNAMIC,
+enum ELF32SectionHeaderType{
+    SHT_NULL,
+    SHT_PROGBITS,
+    SHT_SYMTAB,
+    SHT_STRTAB,
+    SHT_RELA,
+    SHT_HASH,
+    SHT_DYNAMIC,
+    SHT_NOTE,
+    SHT_NOBITS,
+    SHT_REL,
+    SHT_SHLIB,
+    SHT_DYNSYM,
+    SHT_INIT_ARRAY = 14,
+    SHT_FINI_ARRAY,
+    SHT_LOPROC = 0x70000000,
+    SHT_LOUSER = 0x80000000,
+    SHT_HIPROC = 0x7fffffff,
+    SHT_HIUSER = 0xffffffff
 };
 
 enum DynamicTag {
@@ -236,12 +256,15 @@ typedef struct {
     char *searchPaths[255];
     size_t numObjects;
     size_t numSearchPaths;
-} Process;
+} ELFProcess;
 
 typedef struct {
     char *arr[100]; //tbd
     uint8_t front;
     uint8_t rear;
 } queue_t;
+
+ELF32_File ELF_parseFile(void* buf);
+void ELF_load(ELF32_File *file);
 
 #endif

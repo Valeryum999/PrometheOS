@@ -2,6 +2,7 @@
 #define _KERNEL_PAGER_ALLOCATOR_H
 
 #include <kernel/page_frame_allocator.h>
+#include <stdio.h>
 
 #define KERNEL_LOW_BASE 0x100000
 #define KERNEL_BASE 0xc0000000
@@ -17,7 +18,7 @@ void init_paging(void);
 void init_page_tables();
 void kalloc_page_tables(uint32_t *virtualaddr);
 void *get_physaddr(void *virtualaddr);
-void map_page(void *physaddr, void *virtualaddr, unsigned int flags);
+void *mmap(void *virtualaddr, unsigned int flags);
 void load_page_directory(uint32_t page_directory_address);
 void enable_paging();
 

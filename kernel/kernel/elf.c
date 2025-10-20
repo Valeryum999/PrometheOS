@@ -381,6 +381,7 @@ int ELF_load(ObjectFile *object, FILE *file){
                                       MAP_PRIVATE, 
                                       fileno(file), 
                                       0);
+    printf("Base addr @ %08x\n",object->baseAddr);
     for(int i=0; i<object->elfFile->header->ProgramHeaderTableEntryCount; i++){
         if(object->elfFile->programHeaders[i].Type == ELF_PROGRAM_TYPE_LOAD){
             if(object->elfFile->programHeaders[i].MemorySize == 0) continue;
@@ -389,16 +390,28 @@ int ELF_load(ObjectFile *object, FILE *file){
             uint32_t padding = (uint32_t)(addr - page);
             uint32_t offset = object->elfFile->programHeaders[i].Offset - padding;
             ELF_printMapping(addr,
-                            object->elfFile->programHeaders[i].MemorySize,
+                            object->elfFile->programHeaders[i].FileSize,
                             object->elfFile->programHeaders[i].Flags,
                             offset,
                             page);
-            mmap(page, 
-                object->elfFile->programHeaders[i].MemorySize,
+            void *result = mmap(page, 
+                object->elfFile->programHeaders[i].FileSize,
                 ELF_to_MMAP_perm(object->elfFile->programHeaders[i].Flags),
                 MAP_PRIVATE | MAP_FIXED, 
                 fileno(file), 
                 offset);
+
+            printf("Result of mapping is: %x\n",result);
+
+            if(object->elfFile->programHeaders[i].MemorySize > object->elfFile->programHeaders[i].FileSize){
+                printf("Filesz %08x and memsz %08x\n", object->elfFile->programHeaders[i].FileSize, object->elfFile->programHeaders[i].MemorySize);
+                uint8_t *zero_start = (uint8_t *)(object->baseAddr + object->elfFile->programHeaders[i].VirtualAddress + object->elfFile->programHeaders[i].FileSize);
+                size_t zero_len = object->elfFile->programHeaders[i].MemorySize - object->elfFile->programHeaders[i].FileSize;
+                printf("Zeroing out @ %08x for %08x bytes\n", zero_start, zero_len);
+                for(int j=0; j<zero_len; j++){
+                    *(zero_start + j) = 0;
+                }
+            }
         }
     }
     
@@ -447,6 +460,11 @@ int ELF_applyRelocations(Process *process){
                 void *src = (void *)(process->objects[lib]->baseAddr + toCopy->st_value);
                 void *dst = (void *)(process->objects[i]->baseAddr + process->objects[i]->elfFile->relocations[j].r_offset);
                 memcpy(dst, src, symbol->st_size);
+            } else if(process->objects[i]->elfFile->relocations[j].r_type == RELATIVE){
+                uint32_t *relocationAddr = (uint32_t *)(process->objects[i]->baseAddr + process->objects[i]->elfFile->relocations[j].r_offset);
+                printf("Applying relocation @ %08x \n", relocationAddr);
+                *relocationAddr = process->objects[i]->baseAddr + *relocationAddr;
+                mprotect(page, 0x1, PROT_READ | PROT_EXEC);
             }
         }
     }

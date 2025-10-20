@@ -8,6 +8,8 @@
 #include <kernel/idt.h>
 #include <kernel/isr.h>
 #include <kernel/page_frame_allocator.h>
+#include <kernel/elf.h>
+#include <kernel/process.h>
 #include <fs/fat.h>
 
 extern uint32_t end_lowtext;
@@ -20,6 +22,13 @@ void kernel_main(void) {
 	init_ISR();
 	init_stack();
 	printf("Hello World!\n");
-	DISK *disk = (DISK *) 0xc001b000; //0xc001b000 : 0xc0183000
-	FAT_Initialize(disk);
+	// FAT_Initialize(disk);
+	uint32_t elf = 0xc0020000 + 0x4400;
+	printf("ELF starts @ %x\n",elf);
+	load_process((void *)elf);
+	printf("After process execution! :))");
+	// ELF32_File file = ELF_parseFile((void *)elf);
+	// ELF_load(&file);
+	// FAT_File *file = FAT_Open(disk, "hello");
+	// asm volatile("jmp *%0"::"r"(file.header->ProgramEntryPosition));
 }
