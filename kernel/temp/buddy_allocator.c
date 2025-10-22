@@ -36,7 +36,8 @@ static void list_remove(list_t *entry) {
 
 static list_t *list_pop(list_t *list) {
   list_t *back = list->prev;
-  if (back == list) return NULL;
+  if (back == list)
+    return NULL;
   list_remove(back);
   return back;
 }
@@ -139,8 +140,8 @@ void *malloc(size_t request) {
     }
 
     // size = (size_t)1 << (MAX_ALLOC_LOG2 - bucket);
-    // bytes_needed = bucket < original_bucket ? size / 2 + sizeof(list_t) : size;
-    // if (!update_max_ptr(ptr + bytes_needed)) {
+    // bytes_needed = bucket < original_bucket ? size / 2 + sizeof(list_t) :
+    // size; if (!update_max_ptr(ptr + bytes_needed)) {
     //   list_push(&buckets[bucket], (list_t *)ptr);
     //   return NULL;
     // }
@@ -177,13 +178,13 @@ void free(void *ptr) {
 
   while (i != 0) {
     flip_parent_is_split(i);
-    if (parent_is_split(i) || bucket == bucket_limit) {
+bucket_limit) {
       break;
     }
 
-    list_remove((list_t *)ptr_for_node(((i - 1) ^ 1) + 1, bucket));
-    i = (i - 1) / 2;
-    bucket--;
+list_remove((list_t *)ptr_for_node(((i - 1) ^ 1) + 1, bucket));
+i = (i - 1) / 2;
+bucket--;
   }
 
   list_push(&buckets[bucket], (list_t *)ptr_for_node(i, bucket));
