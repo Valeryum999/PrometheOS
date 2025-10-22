@@ -10,7 +10,7 @@ AR = llvm-ar
 GRUB = grub
 
 override LDFLAGS += -T $(ARCHDIR)/linker.ld
-override CFLAGS += -Iinclude -std=gnu11 -ffreestanding
+override CFLAGS += -Iinclude -Ilib/include -std=gnu11 -ffreestanding
 
 ARCHDIR = arch/$(TARGET_ARCH)
 include $(ARCHDIR)/arch.mk
@@ -19,7 +19,10 @@ OBJS = \
 	$(ARCH_OBJS) \
 	$(patsubst %.c,$(DESTDIR)/%.o,$(wildcard kernel/*.c)) \
 	$(patsubst %.c,$(DESTDIR)/%.o,$(wildcard kernel/fs/*.c)) \
-	$(patsubst %.c,$(DESTDIR)/%.o,$(wildcard libc/*.c)) \
+	$(patsubst %.c,$(DESTDIR)/%.o,$(wildcard lib/ctype/*.c)) \
+	$(patsubst %.c,$(DESTDIR)/%.o,$(wildcard lib/stdio/*.c)) \
+	$(patsubst %.c,$(DESTDIR)/%.o,$(wildcard lib/stdlib/*.c)) \
+	$(patsubst %.c,$(DESTDIR)/%.o,$(wildcard lib/string/*.c)) \
 
 qemu: $(DESTDIR)/prometheos.iso
 	qemu-system-$(TARGET_ARCH) -cdrom $<
