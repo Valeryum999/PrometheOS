@@ -7,7 +7,7 @@ SECTIONS
 {
 	. = LOW_BASE;
 
-	.lowtext BLOCK(4K) : ALIGN(4K)
+	.lowtext : ALIGN(4096)
 	{
 		*(.multiboot)
 		*(.lowentry)
