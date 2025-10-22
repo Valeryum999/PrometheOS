@@ -12,3 +12,5 @@ ARCH_OBJS= \
 	$(DESTDIR)/$(ARCHDIR)/isr.o \
 	$(DESTDIR)/$(ARCHDIR)/io.o \
 	$(DESTDIR)/$(ARCHDIR)/process.o \
+	$(DESTDIR)/$(ARCHDIR)/crti.o \
+	$(DESTDIR)/$(ARCHDIR)/crtn.o \

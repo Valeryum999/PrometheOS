@@ -5,7 +5,7 @@
 TARGET_ARCH = i386
 DESTDIR = out
 CC = clang --target=$(TARGET_ARCH)-unknown-none-elf
-LD = ld.lld
+LD = $(CC) -nostartfiles
 AR = llvm-ar
 GRUB = grub
 
