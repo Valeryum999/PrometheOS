@@ -1,100 +1,74 @@
-DEFAULT_HOST!=../scripts/default-host.sh
-HOST?=DEFAULT_HOST
-HOSTARCH!=../scripts/target-triplet-to-arch.sh $(HOST)
+# The only input should be $TARGET_ARCH and $DESTDIR
 
-CFLAGS?=-Og -g
-CPPFLAGS?=
-LDFLAGS?=
-LIBS?=
+.SUFFIXES:
 
-DESTDIR?=
-PREFIX?=/usr/local
-EXEC_PREFIX?=$(PREFIX)
-INCLUDEDIR?=$(PREFIX)/include
-LIBDIR?=$(EXEC_PREFIX)/lib
+CFLAGS += -ffreestanding -Wall -Wextra -Iinclude
+LIBK_CFLAGS := $(CFLAGS)
 
-CFLAGS:=$(CFLAGS) -ffreestanding -Wall -Wextra
-CPPFLAGS:=$(CPPFLAGS) -D__is_libc -Iinclude
-LIBK_CFLAGS:=$(CFLAGS)
-LIBK_CPPFLAGS:=$(CPPFLAGS) -D__is_libk
-
-ARCHDIR=arch/$(HOSTARCH)
+ARCHDIR=arch/$(TARGET_ARCH)
 
 include $(ARCHDIR)/make.config
 
-CFLAGS:=$(CFLAGS) $(ARCH_CFLAGS)
-CPPFLAGS:=$(CPPFLAGS) $(ARCH_CPPFLAGS)
-LIBK_CFLAGS:=$(LIBK_CFLAGS) $(KERNEL_ARCH_CFLAGS)
-LIBK_CPPFLAGS:=$(LIBK_CPPFLAGS) $(KERNEL_ARCH_CPPFLAGS)
+CFLAGS += $(ARCH_CFLAGS)
+LIBK_CFLAGS += $(KERNEL_ARCH_CFLAGS)
 
-FREEOBJS=\
-$(ARCH_FREEOBJS) \
-ctype/islower.o \
-ctype/toupper.o \
-stdio/printf.o \
-stdio/putchar.o \
-stdio/puts.o \
-stdlib/abort.o \
-string/itoa.o \
-string/memcmp.o \
-string/memcpy.o \
-string/memmove.o \
-string/memset.o \
-string/strchr.o \
-string/strcmp.o \
-string/strcpy.o \
-string/strlen.o \
-string/strrev.o \
+FREEOBJS = \
+	$(ARCH_FREEOBJS) \
+	$(DESTDIR)/ctype/islower.o \
+	$(DESTDIR)/ctype/toupper.o \
+	$(DESTDIR)/stdio/printf.o \
+	$(DESTDIR)/stdio/putchar.o \
+	$(DESTDIR)/stdio/puts.o \
+	$(DESTDIR)/stdlib/abort.o \
+	$(DESTDIR)/string/itoa.o \
+	$(DESTDIR)/string/memcmp.o \
+	$(DESTDIR)/string/memcpy.o \
+	$(DESTDIR)/string/memmove.o \
+	$(DESTDIR)/string/memset.o \
+	$(DESTDIR)/string/strchr.o \
+	$(DESTDIR)/string/strcmp.o \
+	$(DESTDIR)/string/strcpy.o \
+	$(DESTDIR)/string/strlen.o \
+	$(DESTDIR)/string/strrev.o \
 
-HOSTEDOBJS=\
-$(ARCH_HOSTEDOBJS) \
+HOSTEDOBJS= \
+	$(ARCH_HOSTEDOBJS) \
 
-OBJS=\
-$(FREEOBJS) \
-$(HOSTEDOBJS) \
+OBJS= \
+	$(FREEOBJS) \
+	$(HOSTEDOBJS) \
 
 LIBK_OBJS=$(FREEOBJS:.o=.libk.o)
 
 #BINARIES=libc.a libk.a # Not ready for libc yet.
-BINARIES=libk.a
+BINARIES=$(DESTDIR)/libk.a
 
 .PHONY: all clean install install-headers install-libs
 .SUFFIXES: .o .libk.o .c .S
 
 all: $(BINARIES)
 
-libc.a: $(OBJS)
+$(DESTDIR)/libc.a: $(OBJS)
 	$(AR) rcs $@ $(OBJS)
 
-libk.a: $(LIBK_OBJS)
+$(DESTDIR)/libk.a: $(LIBK_OBJS)
 	$(AR) rcs $@ $(LIBK_OBJS)
 
-.c.o:
-	$(CC) -MD -c $< -o $@ -std=gnu11 $(CFLAGS) $(CPPFLAGS)
+$(DESTDIR)/%.c.o:
+	$(CC) -c $< -o $@ -std=gnu11 $(CFLAGS)
 
-.c.S:
-	$(CC) -MD -c $< -o $@ $(CFLAGS) $(CPPFLAGS)
+$(DESTDIR)/%.c.S:
+	$(CC) -c $< -o $@ $(CFLAGS)
 
-.c.libk.o:
-	$(CC) -MD -c $< -o $@ -std=gnu11 $(LIBK_CFLAGS) $(LIBK_CPPFLAGS)
+$(DESTDIR)/%.libk.o: %.c
+	@mkdir -p $(shell dirname $@)
+	$(CC) $(LIBK_CFLAGS) -c $< -o $@ -std=gnu11
 
-.S.libk.o:
-	$(CC) -MD -c $< -o $@ $(LIBK_CFLAGS) $(LIBK_CPPFLAGS)
+$(DESTDIR)/%.libk.o: %.S
+	@mkdir -p $(shell dirname $@)
+	$(CC) $(LIBK_CFLAGS) -c $< -o $@
 
 clean:
 	rm -f $(BINARIES) *.a
 	rm -f $(OBJS) $(LIBK_OBJS) *.o */*.o */*/*.o
 	rm -f $(OBJS:.o=.d) $(LIBK_OBJS:.o=.d) *.d */*.d */*/*.d
-
-install: install-headers install-libs
-
-install-headers:
-	mkdir -p $(DESTDIR)$(INCLUDEDIR)
-	cp -R --preserve=timestamps include/. $(DESTDIR)$(INCLUDEDIR)/.
-
-install-libs: $(BINARIES)
-	mkdir -p $(DESTDIR)$(LIBDIR)
-	cp $(BINARIES) $(DESTDIR)$(LIBDIR)
-
--include $(OBJS:.o=.d)
--include $(LIBK_OBJS:.o=.d)

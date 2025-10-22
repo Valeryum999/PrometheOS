@@ -1,126 +1,43 @@
-DEFAULT_HOST!=../scripts/default-host.sh
-HOST?=DEFAULT_HOST
-HOSTARCH!=../scripts/target-triplet-to-arch.sh $(HOST)
+ARCHDIR = arch/$(TARGET_ARCH)
+DESTDIR = out
 
-CFLAGS?=-Og -g
-CPPFLAGS?=
-LDFLAGS?=
-LIBS?=
+include $(ARCHDIR)/arch.mk
 
-OBJDIR?=../out
-DESTDIR?=
-PREFIX?=/usr/local
-EXEC_PREFIX?=$(PREFIX)
-BOOTDIR?=$(EXEC_PREFIX)/boot
-INCLUDEDIR?=$(PREFIX)/include
+override LDFLAGS += -T $(ARCHDIR)/linker.ld
+override CFLAGS += -Iinclude -std=gnu11 -I../libc/include -ffreestanding
 
-CFLAGS:=$(CFLAGS) -ffreestanding -Wall -Wextra
-CPPFLAGS:=$(CPPFLAGS) -D__is_kernel -Iinclude
-LDFLAGS:=$(LDFLAGS)
-LIBS:=$(LIBS) -nostdlib -lk -lgcc
+OBJS += \
+	$(DESTDIR)/kernel/kernel.o \
+	$(DESTDIR)/kernel/pager.o \
+	$(DESTDIR)/kernel/gdt.o \
+	$(DESTDIR)/kernel/isrs_gen.o \
+	$(DESTDIR)/kernel/idt.o \
+	$(DESTDIR)/kernel/isr.o \
+	$(DESTDIR)/kernel/io.o \
+	$(DESTDIR)/kernel/irq.o \
+	$(DESTDIR)/kernel/keyboard.o \
+	$(DESTDIR)/kernel/cursor.o \
+	$(DESTDIR)/kernel/page_frame_allocator.o \
+	$(DESTDIR)/kernel/pic.o \
+	$(DESTDIR)/kernel/fs/disk.o \
+	$(DESTDIR)/kernel/fs/fat.o \
+	$(DESTDIR)/kernel/elf32.o \
+	$(DESTDIR)/kernel/process.o \
+	$(DESTDIR)/kernel/scheduler.o \
+	$(ARCH_OBJS) \
 
-ARCHDIR=arch/$(HOSTARCH)
-OBJDIR=../obj
+.PHONY: clean
 
-include $(ARCHDIR)/make.config
+$(DESTDIR)/prometheos.kernel: $(OBJS) $(ARCHDIR)/linker.ld
+	$(LD) $(LDFLAGS) -o $@ $(OBJS) $(DESTDIR)/libk.a
 
-CFLAGS:=$(CFLAGS) $(KERNEL_ARCH_CFLAGS)
-CPPFLAGS:=$(CPPFLAGS) $(KERNEL_ARCH_CPPFLAGS)
-LDFLAGS:=$(LDFLAGS) $(KERNEL_ARCH_LDFLAGS)
-LIBS:=$(LIBS) $(KERNEL_ARCH_LIBS)
-
-KERNEL_OBJS=\
-$(KERNEL_ARCH_OBJS) \
-kernel/kernel.o \
-kernel/pager.o \
-kernel/gdt.o \
-kernel/isrs_gen.o \
-kernel/idt.o \
-kernel/isr.o \
-kernel/io.o \
-kernel/irq.o \
-kernel/keyboard.o \
-kernel/cursor.o \
-kernel/page_frame_allocator.o \
-kernel/pic.o \
-kernel/fs/disk.o \
-kernel/fs/fat.o \
-kernel/elf32.o \
-kernel/process.o \
-kernel/scheduler.o \
-
-TEMPOBJS = \
-$(ARCHDIR)/crti.o \
-$(ARCHDIR)/crtbegin.o \
-$(KERNEL_OBJS) \
-$(ARCHDIR)/crtend.o \
-$(ARCHDIR)/crtn.o
-OBJS=$(patsubst %.o,$(OBJDIR)/%.o,$(TEMPOBJS))
-
-TEMPLINK_LIST=\
-$(LDFLAGS) \
-$(ARCHDIR)/crti.o \
-$(ARCHDIR)/crtbegin.o \
-$(KERNEL_OBJS) \
-$(LIBS) \
-$(ARCHDIR)/crtend.o \
-$(ARCHDIR)/crtn.o
-LINK_LIST=$(patsubst %.o,$(OBJDIR)/%.o,$(TEMPLINK_LIST))
-
-.PHONY: all clean install install-headers install-kernel
-.SUFFIXES:
-
-all: prometheos.kernel
-
-prometheos.kernel: $(OBJS) $(ARCHDIR)/linker.ld
-	$(CC) -T $(ARCHDIR)/linker.ld -o $@ $(CFLAGS) $(LINK_LIST)
-	grub-file --is-x86-multiboot $@
-
-$(OBJDIR)/%.o: %.S
-	echo $@ "SESSO!"
-
-$(OBJDIR)/%.o: %.c
+$(DESTDIR)/%.o: %.c
 	@mkdir -p $(shell dirname $@)
-	$(CC) -MD -c $< -o $@ -std=gnu11 $(CFLAGS) $(CPPFLAGS)
+	$(CC) -c $(CFLAGS) $< -o $@
 
-$(OBJDIR)/%.o: %.S
+$(DESTDIR)/%.o: %.S
 	@mkdir -p $(shell dirname $@)
-	$(CC) -MD -c $< -o $@ $(CFLAGS) $(CPPFLAGS)
-
-#$(OBJDIR)/%.o: arch/%.c
-#	@mkdir -p $(shell dirname $@)
-#	$(CC) -MD -c $< -o $@ -std=gnu11 $(CFLAGS) $(CPPFLAGS)
-#
-#$(OBJDIR)/%.o: arch/%.S
-#	@mkdir -p $(shell dirname $@)
-#	$(CC) -MD -c $< -o $@ -std=gnu11 $(CFLAGS) $(CPPFLAGS)
-
-
-$(OBJDIR)/$(ARCHDIR)/crtbegin.o $(OBJDIR)/$(ARCHDIR)/crtend.o:
-	OBJ=`$(CC) $(CFLAGS) $(LDFLAGS) -print-file-name=$(@F)` && cp "$$OBJ" $@
-
-.c.o:
-	$(CC) -MD -c $< -o $@ -std=gnu11 $(CFLAGS) $(CPPFLAGS)
-
-.S.o:
-	$(CC) -MD -c $< -o $@ $(CFLAGS) $(CPPFLAGS)
-
-kernel/isrs_gen.c arch/i386/isrs_gen.inc &:
-	python ../scripts/generate_isrs.py kernel/isrs_gen.c arch/i386/isrs_gen.S
+	$(CC) -c $(CFLAGS) $< -o $@
 
 clean:
-	rm -f prometheos.kernel
-	rm -f $(OBJS) *.o */*.o */*/*.o
-	rm -f $(OBJS:.o=.d) *.d */*.d */*/*.d
-
-install: install-headers install-kernel
-
-install-headers:
-	mkdir -p $(DESTDIR)$(INCLUDEDIR)
-	cp -R --preserve=timestamps include/. $(DESTDIR)$(INCLUDEDIR)/.
-
-install-kernel: prometheos.kernel
-	mkdir -p $(DESTDIR)$(BOOTDIR)
-	cp prometheos.kernel $(DESTDIR)$(BOOTDIR)
-
--include $(OBJS:.o=.d)
+	rm -rf $(DESTDIR)

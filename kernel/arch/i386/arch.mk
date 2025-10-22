@@ -1,0 +1,14 @@
+KERNEL_ARCH_CFLAGS=
+KERNEL_ARCH_CPPFLAGS=
+KERNEL_ARCH_LDFLAGS=
+KERNEL_ARCH_LIBS=
+
+ARCH_OBJS= \
+	$(DESTDIR)/$(ARCHDIR)/boot.o \
+	$(DESTDIR)/$(ARCHDIR)/tty.o \
+	$(DESTDIR)/$(ARCHDIR)/kernel_entry.o \
+	$(DESTDIR)/$(ARCHDIR)/gdt.o \
+	$(DESTDIR)/$(ARCHDIR)/idt.o \
+	$(DESTDIR)/$(ARCHDIR)/isr.o \
+	$(DESTDIR)/$(ARCHDIR)/io.o \
+	$(DESTDIR)/$(ARCHDIR)/process.o \
