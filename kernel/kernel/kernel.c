@@ -42,5 +42,9 @@ void kernel_main(void) {
 	task_struct process = load_process((void *)elf);
 	// start_process(process);
 	add_process_to_schedule(&process);
-	schedule();
+	i686_IRQ_RegisterHandler(0, schedule);
+	while(1){
+
+	}
+	// schedule();
 }

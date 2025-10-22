@@ -5,7 +5,7 @@ switch_to_task:
     push %edi
     push %ebp
 
-    mov 12(%esp), %edi           #current PCB
+    mov 20(%esp), %edi           #current PCB
     mov %esp, 4(%edi)
 
     mov 12(%edi), %esi              #esi = address of the next task's "thread control block" (parameter passed on stack)
