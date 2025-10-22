@@ -3,29 +3,31 @@
 
 uint32_t kernel_page_directory;
 
-void load_process(void *buf){
+task_struct load_process(void *buf){
     uint32_t *process_pd = (uint32_t *)mmap((void *)0x500000, PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER);
-    printf("New kernel page directory: %x\n",process_pd);
-    printf("Virtual page directory @ %x\n", virtual_page_directory);
     for(int i=768; i<774; i++){
         printf("Virtual page directory @ %d: %x\n", i, virtual_page_directory[i]);
         process_pd[i] = virtual_page_directory[i];
     }
     process_pd[0] = virtual_page_directory[0];
     process_pd[1023] = (uint32_t)process_pd | PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER;
+    kernel_page_directory = virtual_page_directory[1023];
     printf("pd should point to itself: %x\n", process_pd[1023]);
-    Process process;
-    process.page_directory = (uint32_t)process_pd;
-    process.ELFfile = buf;
-    start_process(process);
+    task_struct process;
+    process.cr3 = (void *)process_pd;
+    __asm__ volatile("mov %0, %%cr3" :: "r"(process.cr3));
+    ELF32_File file = ELF_parseFile(buf);
+    process.ELFfile = &file;
+    process.eip = (void *)process.ELFfile->header->ProgramEntryPosition;
+    printf("process eip!! %x %x\n", process.eip, process.ELFfile->header->ProgramEntryPosition);
+    ELF_load(process.ELFfile);
+    void *stack = mmap((void *)0x800000, PAGE_WRITABLE | PAGE_USER | PAGE_PRESENT);
+    process.esp = stack + 0xfc0;
+    return process;
 }
 
-void start_process(Process process){
-    kernel_page_directory = virtual_page_directory[1023];
-    __asm__ volatile("mov %0, %%cr3" :: "r"(process.page_directory));
-    ELF32_File file = ELF_parseFile(process.ELFfile);
-    ELF_load(&file);
-    __asm__ volatile("jmp *%0"::"r"(file.header->ProgramEntryPosition));
+void start_process(task_struct process){
+    __asm__ volatile("jmp *%0"::"r"(process.ELFfile->header->ProgramEntryPosition));
 }
 
 void exit_process(){

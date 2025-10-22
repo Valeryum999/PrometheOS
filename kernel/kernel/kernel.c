@@ -14,6 +14,7 @@
 #include <kernel/page_frame_allocator.h>
 #include <kernel/elf.h>
 #include <kernel/process.h>
+#include <kernel/scheduler.h>
 #include <fs/fat.h>
 
 extern uint32_t end_lowtext;
@@ -32,16 +33,14 @@ void kernel_main(void) {
 	i686_IRQ_RegisterHandler(0, timer);
 	init_stack();
 	init_keyboard();
-	// enable_cursor(0, 15);
-	// update_cursor(1,8);
 	printf("Hello World!\n");
 	// FAT_Initialize(disk);
-	// uint32_t elf = 0xc0020000 + 0x4400;
-	// printf("ELF starts @ %x\n",elf);
-	// load_process((void *)elf);
-	// printf("After process execution! :))");
-	// ELF32_File file = ELF_parseFile((void *)elf);
-	// ELF_load(&file);
-	// FAT_File *file = FAT_Open(disk, "hello");
-	// asm volatile("jmp *%0"::"r"(file.header->ProgramEntryPosition));
+	uint32_t disk = 0xc0024000;
+	uint32_t elf = disk + 0x4400;
+	uint32_t halt = disk + 0x6800;
+	printf("ELF starts @ %x\n",elf);
+	task_struct process = load_process((void *)elf);
+	// start_process(process);
+	add_process_to_schedule(&process);
+	schedule();
 }

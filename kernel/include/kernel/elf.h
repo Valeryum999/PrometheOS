@@ -1,7 +1,7 @@
 #ifndef _KERNEL_ELF_H
 #define _KERNEL_ELF_H
 
-#define ELF_MAGIC 0x7f454c46
+#define ELF_MAGIC 0x464c457f
 
 #include <stdint.h>
 #include <stddef.h>

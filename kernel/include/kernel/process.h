@@ -7,19 +7,17 @@
 #include <kernel/pager.h>
 #include <kernel/elf.h>
 
-typedef struct {
-	int pid;
-	// OpenFile open_files[MAX_OPEN_FILES];
-	uint32_t page_directory;
-	void *ELFfile;
-} Process;
+typedef struct task_struct{
+	void *esp;
+    void *esp0;
+    void *cr3;
+    struct task_struct *next;
+    void *eip;
+    uint8_t state;
+	ELF32_File *ELFfile;
+} task_struct;
 
-// typedef struct {
-// 	int fd;
-// 	char path[MAX_PATH];
-// } OpenFile;
-
-void load_process(void *buf);
-void start_process(Process process);
+task_struct load_process(void *buf);
+void start_process(task_struct process);
 
 #endif

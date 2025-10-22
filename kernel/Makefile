@@ -47,6 +47,7 @@ kernel/fs/disk.o \
 kernel/fs/fat.o \
 kernel/elf32.o \
 kernel/process.o \
+kernel/scheduler.o \
 
 TEMPOBJS = \
 $(ARCHDIR)/crti.o \

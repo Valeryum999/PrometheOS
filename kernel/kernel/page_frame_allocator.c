@@ -24,7 +24,6 @@ static uint8_t *pop() {
     }
     uint8_t *popped = stack.arr[stack.top];
     stack.top--;
-    printf("Popped %x from the stack\n", popped);
     return popped;
 }
 

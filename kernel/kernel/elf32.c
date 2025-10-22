@@ -312,6 +312,11 @@ void ELF_printMapping(void *addr, uint32_t size, uint32_t flags, uint32_t offset
 ELF32_File ELF_parseFile(void* baseAddr) {
     ELF32_File file;
     file.header = baseAddr;
+    // if(file.header->Magic != ELF_MAGIC){
+    //     printf("Error in parsing ELF file @ %x\n", baseAddr);
+    //     printf("file header magic bytes: %x\n", file.header->Magic);
+    //     return file;
+    // }
     file.programHeaders = baseAddr + file.header->ProgramHeaderTablePosition;
     file.sectionHeaders = baseAddr + file.header->SectionHeaderTablePosition;
     ELF32SectionHeader *symTable = findSectionHeader(&file, SHT_SYMTAB);
@@ -329,7 +334,6 @@ void ELF_load(ELF32_File *file){
         if(file->programHeaders[i].Type == ELF_PROGRAM_TYPE_LOAD){
             void *addr = (void *)(baseAddr + file->programHeaders[i].VirtualAddress);
             void *page = (void *)align_page((size_t)addr);
-            printf("File offset: %x\n", file->programHeaders[i].Offset);
             uint32_t offset = (uint32_t)(file->header) + file->programHeaders[i].Offset;
             ELF_printMapping(addr,
                             file->programHeaders[i].FileSize,
@@ -338,7 +342,6 @@ void ELF_load(ELF32_File *file){
                             page);
             
             void *result = mmap(page, PAGE_WRITABLE | PAGE_USER);
-            printf("Result of mapping is: %x\n",result);
             memcpy(result, (void *)offset, file->programHeaders[i].FileSize);
         }
     }
