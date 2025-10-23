@@ -2,6 +2,7 @@
 #define _KERNEL_SCHEDULER_H
 
 #include <kernel/process.h>
+#include <kernel/isr.h>
 
 void init_first_task();
 void schedule();

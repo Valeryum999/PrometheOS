@@ -76,12 +76,15 @@ void malloc_page_table(uint32_t page_directory_index){
 
 void *mmap(void *virtualaddr, unsigned int flags) {
     //TODO: Make sure that both addresses are page-aligned.
+    void *physaddr = malloc();
+    if(virtualaddr == NULL)
+        virtualaddr = physaddr;
 
     uint32_t page_directory_index = (uint32_t)virtualaddr >> 22;
     uint32_t page_table_index = (uint32_t)virtualaddr >> 12 & 0x3FF;
 
     uint32_t *page_table = (uint32_t *)(0xffc00000 + page_directory_index*PAGE_SIZE);
-    void *physaddr = malloc();
+    
     if(!(virtual_page_directory[page_directory_index] & PAGE_PRESENT)){
         malloc_page_table(page_directory_index);
     }

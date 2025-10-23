@@ -16,12 +16,12 @@ ISR\num:
 .include "arch/i386/isrs_gen.inc"
 
 isr_common:
-    pusha
+    pushal
     xor %eax, %eax
     mov %ds, %ax
-    push %eax
+    push %eax       # add ds to the registers
 
-    mov $0x10, %ax
+    mov $0x10, %ax  # set all segment registers to 0x10
     mov %ax, %ds
     mov %ax, %es
     mov %ax, %fs
@@ -31,12 +31,12 @@ isr_common:
     call ISR_Handler
     add $4, %esp
 
-    pop %eax
+    pop %eax        #restore all segments previously stored
     mov %ax, %ds
     mov %ax, %es
     mov %ax, %fs
     mov %ax, %gs
 
-    popa
+    popal
     add $8, %esp
     iret

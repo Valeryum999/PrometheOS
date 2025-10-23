@@ -312,11 +312,11 @@ void ELF_printMapping(void *addr, uint32_t size, uint32_t flags, uint32_t offset
 ELF32_File ELF_parseFile(void* baseAddr) {
     ELF32_File file;
     file.header = baseAddr;
-    // if(file.header->Magic != ELF_MAGIC){
-    //     printf("Error in parsing ELF file @ %x\n", baseAddr);
-    //     printf("file header magic bytes: %x\n", file.header->Magic);
-    //     return file;
-    // }
+    if(file.header->Magic != ELF_MAGIC){
+        printf("Error in parsing ELF file @ %x\n", baseAddr);
+        printf("file header magic bytes: %x\n", file.header->Magic);
+        return file;
+    }
     file.programHeaders = baseAddr + file.header->ProgramHeaderTablePosition;
     file.sectionHeaders = baseAddr + file.header->SectionHeaderTablePosition;
     ELF32SectionHeader *symTable = findSectionHeader(&file, SHT_SYMTAB);

@@ -34,17 +34,18 @@ void kernel_main(void) {
 	init_stack();
 	init_keyboard();
 	printf("Hello World!\n");
-	// FAT_Initialize(disk);
 	uint32_t disk = 0xc0024000;
-	uint32_t elf = disk + 0x4400;
-	uint32_t halt = disk + 0x6800;
-	printf("ELF starts @ %x\n",elf);
-	task_struct process = load_process((void *)elf);
-	// start_process(process);
-	add_process_to_schedule(&process);
+	uint32_t helloA = disk + 0x7a00;
+	uint32_t helloB = disk + 0x9c00;
+	uint32_t helloC = disk + 0xbe00;
+	task_struct processA = load_process((void *)helloA);
+	task_struct processB = load_process((void *)helloB);
+	task_struct processC = load_process((void *)helloC);
+	add_process_to_schedule(&processA);
+	add_process_to_schedule(&processB);
+	add_process_to_schedule(&processC);
 	i686_IRQ_RegisterHandler(0, schedule);
 	while(1){
-
+		
 	}
-	// schedule();
 }

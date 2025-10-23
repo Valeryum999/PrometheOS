@@ -4,7 +4,7 @@
 uint32_t kernel_page_directory;
 
 task_struct load_process(void *buf){
-    uint32_t *process_pd = (uint32_t *)mmap((void *)0x500000, PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER);
+    uint32_t *process_pd = (uint32_t *)mmap(NULL, PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER);
     for(int i=768; i<774; i++){
         printf("Virtual page directory @ %d: %x\n", i, virtual_page_directory[i]);
         process_pd[i] = virtual_page_directory[i];
@@ -21,8 +21,11 @@ task_struct load_process(void *buf){
     process.eip = (void *)process.ELFfile->header->ProgramEntryPosition;
     printf("process eip!! %x %x\n", process.eip, process.ELFfile->header->ProgramEntryPosition);
     ELF_load(process.ELFfile);
-    void *stack = mmap((void *)0x800000, PAGE_WRITABLE | PAGE_USER | PAGE_PRESENT);
-    process.esp = stack + 0xfc0;
+    void *stack = mmap(NULL, PAGE_WRITABLE | PAGE_USER | PAGE_PRESENT);
+    process.esp = stack + 0xfcc;
+    process.esp0 = stack + 0x1000;
+    printf("Stack is mapped at %x\n", process.esp0 - 0x1000);
+    __asm__ volatile("mov %0, %%cr3" :: "r"(kernel_page_directory & ~0xfff));
     return process;
 }
 
