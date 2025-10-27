@@ -2,6 +2,7 @@
 #include <kernel/elf.h>
 
 uint32_t kernel_page_directory;
+extern void __attribute__((naked)) task_entry(void *first_eip);
 
 task_struct load_process(void *buf){
     uint32_t *process_pd = (uint32_t *)mmap(NULL, PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER);
@@ -24,27 +25,10 @@ task_struct load_process(void *buf){
     void *stack = mmap(NULL, PAGE_WRITABLE | PAGE_USER | PAGE_PRESENT);
     process.esp = stack + 0xfcc;
     process.esp0 = stack + 0x1000;
+    uint32_t *buffer = (uint32_t *)(stack + 0xfdc);
+    *buffer = (uint32_t)task_entry;
+    *(buffer+1) = (uint32_t)process.eip;
     printf("Stack is mapped at %x\n", process.esp0 - 0x1000);
     __asm__ volatile("mov %0, %%cr3" :: "r"(kernel_page_directory & ~0xfff));
     return process;
-}
-
-void start_process(task_struct process){
-    __asm__ volatile("jmp *%0"::"r"(process.ELFfile->header->ProgramEntryPosition));
-}
-
-void exit_process(){
-    printf("Kernel page directory: %x\n",kernel_page_directory & ~0xfff);
-    __asm__ volatile("mov %0, %%cr3" :: "r"(kernel_page_directory & ~0xfff));
-    __asm__ volatile("mov %ebp, %esp");
-    __asm__ volatile("pop %ebp");
-    __asm__ volatile("mov %ebp, %esp");
-    __asm__ volatile("pop %ebp");
-    __asm__ volatile("mov %ebp, %esp");
-    __asm__ volatile("pop %ebp");
-    __asm__ volatile("mov %ebp, %esp");
-    __asm__ volatile("pop %ebp");
-    __asm__ volatile("mov %ebp, %esp");
-    __asm__ volatile("pop %ebp");
-    __asm__ volatile("ret");
 }

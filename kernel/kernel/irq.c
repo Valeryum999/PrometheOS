@@ -9,12 +9,12 @@ IRQHandler g_IRQHandlers[16];
 
 void i686_IRQ_Handler(Registers *regs){
     int irq = regs->interrupt - PIC_REMAP_OFFSET;
+    i686_PIC_SendEndOfInterrupt(irq);
     if(g_IRQHandlers[irq] != NULL){
         g_IRQHandlers[irq](regs);
     } else {
         printf("Unhandled IRQ %d\n", irq);
     }
-    i686_PIC_SendEndOfInterrupt(irq);
 }
 
 void i686_IRQ_Initialize(){

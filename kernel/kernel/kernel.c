@@ -41,9 +41,12 @@ void kernel_main(void) {
 	task_struct processA = load_process((void *)helloA);
 	task_struct processB = load_process((void *)helloB);
 	task_struct processC = load_process((void *)helloC);
+	task_struct idle_task;
+	initialize_multiprocessing(&idle_task);
 	add_process_to_schedule(&processA);
 	add_process_to_schedule(&processB);
 	add_process_to_schedule(&processC);
+	printf("PCB for 3 processes: %x %x %x\n", &processA, &processB, &processC);
 	i686_IRQ_RegisterHandler(0, schedule);
 	while(1){
 		
