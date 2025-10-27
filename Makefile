@@ -12,7 +12,7 @@ GRUB = grub
 
 override LDFLAGS += -T $(ARCHDIR)/linker.ld -g -Og -ffreestanding --sysroot=/home/valeryum/Desktop/kernel/sysroot -isystem=/usr/include -Wall -Wextra -nostdlib -lk -lgcc
 override CFLAGS += -g -Og -std=gnu11 -ffreestanding --sysroot=/home/valeryum/Desktop/kernel/sysroot -isystem=/usr/include -Wall -Wextra -D__is_kernel -Iinclude
-LIBK_FLAGS = -D__is_libc -Iinclude -D__is_libk 
+LIBK_FLAGS = -g -Og -std=gnu11 -ffreestanding --sysroot=/home/valeryum/Desktop/kernel/sysroot -isystem=/usr/include -Wall -Wextra -D__is_libc -Iinclude -D__is_libk 
 ARCHDIR = arch/$(TARGET_ARCH)
 include $(ARCHDIR)/arch.mk
 
@@ -41,7 +41,7 @@ $(DESTDIR)/prometheos.iso: $(DESTDIR)/prometheos.kernel
 	$(GRUB)-mkrescue -o $(DESTDIR)/prometheos.iso $(DESTDIR)/iso
 
 $(DESTDIR)/prometheos.kernel: $(OBJS) $(ARCHDIR)/linker.ld libk.a
-	$(LD) $(LDFLAGS) -o $@ $(OBJS)
+	$(LD) $(LDFLAGS) -o $@ $(OBJS) libk.a
 	$(GRUB)-file --is-x86-multiboot $@
 
 libk.a: $(LIBK_OBJS)
@@ -49,12 +49,12 @@ libk.a: $(LIBK_OBJS)
 	
 $(DESTDIR)/lib/%.libk.o: lib/%.c
 	@mkdir -p $(shell dirname $@)
-	$(CC) -c $(CFLAGS) $(LIBK_FLAGS) $< -o $@
+	$(CC) $(LIBK_FLAGS) -c $< -o $@
 
 $(DESTDIR)/%.o: %.c
 	@mkdir -p $(shell dirname $@)
-	$(CC) -c $(CFLAGS) $< -o $@
+	$(CC) $(CFLAGS) -c $< -o $@
 
 $(DESTDIR)/%.o: %.S
 	@mkdir -p $(shell dirname $@)
-	$(CC) -c $(CFLAGS) $< -o $@
+	$(CC) $(CFLAGS) -c $< -o $@
