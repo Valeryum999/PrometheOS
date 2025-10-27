@@ -3,14 +3,15 @@
 .PHONY: qemu, clean
 
 TARGET_ARCH = i386
-DESTDIR = out
-CC = clang --target=$(TARGET_ARCH)-unknown-none-elf
+DESTDIR = obj
+#CC = clang --target=$(TARGET_ARCH)-unknown-none-elf
+CC = i686-elf-gcc
 LD = $(CC) -nostartfiles
-AR = llvm-ar
+AR = i686-elf-ar 
 GRUB = grub
 
 override LDFLAGS += -T $(ARCHDIR)/linker.ld
-override CFLAGS += -Iinclude -Ilib/include -std=gnu11 -ffreestanding
+override CFLAGS += -Iinclude -Ilib/include -std=gnu11 -ffreestanding 
 
 ARCHDIR = arch/$(TARGET_ARCH)
 include $(ARCHDIR)/arch.mk

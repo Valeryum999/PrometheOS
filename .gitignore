@@ -1,4 +1,4 @@
-/out
 .vscode
 .gdb_history
 .gdbinit
+/obj
