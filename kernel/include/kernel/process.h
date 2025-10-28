@@ -3,6 +3,7 @@
 
 #define MAX_OPEN_FILES 10
 #define MAX_PATH 255
+#define KERNEL_PAGE_DIRECTORY_INDEX 768
 
 #include <kernel/pager.h>
 #include <kernel/elf.h>

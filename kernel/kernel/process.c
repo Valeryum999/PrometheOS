@@ -1,12 +1,11 @@
 #include <kernel/process.h>
-#include <kernel/elf.h>
 
 uint32_t kernel_page_directory;
 extern void __attribute__((naked)) task_entry(void *first_eip);
 
 void *map_page_directory_kernel(){
     uint32_t *process_pd = (uint32_t *)mmap(NULL, PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER);
-    for(int i=768; i<774; i++){
+    for(int i=KERNEL_PAGE_DIRECTORY_INDEX; i<KERNEL_PAGE_DIRECTORY_INDEX+6; i++){
         process_pd[i] = virtual_page_directory[i];
     }
     //for being able to write in 0xb8000 VGA memory
@@ -43,8 +42,12 @@ void map_stack(task_struct *process){
 task_struct load_process(void *buf){
     void *process_pd = map_page_directory_kernel();
     write_cr3((uint32_t)process_pd);
+
     task_struct process = load_process_ELF(buf, process_pd);
+
     map_stack(&process);
+
     write_cr3(kernel_page_directory & ~0xfff);
+    
     return process;
 }
