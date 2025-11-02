@@ -48,6 +48,7 @@ kernel/fs/fat.o \
 kernel/elf32.o \
 kernel/process.o \
 kernel/scheduler.o \
+kernel/syscall.o \
 
 TEMPOBJS = \
 $(ARCHDIR)/crti.o \
@@ -75,9 +76,6 @@ all: prometheos.kernel
 prometheos.kernel: $(OBJS) $(ARCHDIR)/linker.ld
 	$(CC) -T $(ARCHDIR)/linker.ld -o $@ $(CFLAGS) $(LINK_LIST)
 	grub-file --is-x86-multiboot $@
-
-$(OBJDIR)/%.o: %.S
-	echo $@ "SESSO!"
 
 $(OBJDIR)/%.o: %.c
 	@mkdir -p $(shell dirname $@)

@@ -8,7 +8,6 @@ void initialize_multiprocessing(task_struct *idle_task_copy);
 void schedule();
 extern void switch_to_task(task_struct* next_thread);
 void add_process_to_schedule(task_struct *next_task);
-void exit_process();
 extern void i686_EnableInterrupts();
 extern void i686_DisableInterrupts();
 

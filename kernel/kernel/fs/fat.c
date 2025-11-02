@@ -18,6 +18,12 @@ int FAT_readSectors(DISK *disk, uint32_t lba, uint32_t count, void *buf){
     return 1;
 }
 
+int FAT_writeSectors(DISK *disk, uint32_t lba, uint32_t count, void *buf){
+    disk = (DISK *)(((uint8_t *)disk) + lba * g_Data->BootSector.BytesPerSector);
+    memcpy(disk, buf, g_Data->BootSector.BytesPerSector * count);
+    return 1;
+}
+
 int FAT_readFAT(DISK *disk){
     return FAT_readSectors(disk, g_Data->BootSector.ReservedSectors, g_Data->BootSector.SectorsPerFat, g_FAT);
 }
@@ -117,7 +123,7 @@ uint32_t FAT_NextCluster(uint32_t currentCluster){
         return (*(uint16_t *)(g_FAT + FATIndex)) >> 4;
 }
 
-int FAT_findFile(DISK *disk,FAT_File *file, const char *name, FAT_DirectoryEntry *entryOut){
+int FAT_findFile(DISK *disk, FAT_File *file, const char *name, FAT_DirectoryEntry *entryOut){
     char fatName[11];
     FAT_DirectoryEntry entry;
     memset(fatName, ' ', sizeof(fatName));
@@ -147,6 +153,7 @@ int FAT_findFile(DISK *disk,FAT_File *file, const char *name, FAT_DirectoryEntry
 }
 
 FAT_File *FAT_Open(DISK *disk, const char *path){
+    if(*path == '\0') return NULL;
     char name[MAX_PATH_SIZE];
     
     if(path[0] == '/')
@@ -171,7 +178,7 @@ FAT_File *FAT_Open(DISK *disk, const char *path){
 
         FAT_DirectoryEntry entry;
         if(FAT_findFile(disk, current, name, &entry)){
-            FAT_Close(current);
+            FAT_Close(disk, current);
 
             if(!isLast && (entry.Attributes & FAT_ATTRIBUTE_DIRECTORY) == 0){
                 printf("FAT: Trying to open a directory %s\n", name);
@@ -181,7 +188,7 @@ FAT_File *FAT_Open(DISK *disk, const char *path){
             current = FAT_OpenEntry(disk, &entry);
 
         } else {
-            FAT_Close(current);
+            FAT_Close(disk, current);
             printf("FAT: %s not found\n", name);
             return NULL;
         }
@@ -237,14 +244,36 @@ int FAT_Read(DISK *disk, FAT_File *file, uint32_t byteCount, void *buf){
 
     return u8Buf - (uint8_t *)buf;
 }
+
+int FAT_Write(DISK *disk, FAT_File *file, uint32_t len, void *buf){
+    FAT_FileData *fd = &g_Data->OpenedFiles[file->Handle];
+    if(fd->Public.isDirectory)
+        return -1; //cannot write on a directory
+    
+    uint8_t *u8Buf = (uint8_t *)buf;
+    while(len > 0){
+        uint32_t leftInBuffer = SECTOR_SIZE - fd->Public.Position % SECTOR_SIZE;
+        uint32_t put = min(len, leftInBuffer);
+
+        memcpy(fd->Buffer + fd->Public.Position % SECTOR_SIZE, u8Buf, put);
+        fd->Public.Position = (fd->Public.Position + len) % SECTOR_SIZE;
+        len -= put;
+    }
+
+    return u8Buf - (uint8_t *)buf;
+}
+
 int FAT_ReadEntry(DISK *disk, FAT_File *file, FAT_DirectoryEntry *dirEntry){
     return FAT_Read(disk, file, sizeof(FAT_DirectoryEntry), dirEntry) == sizeof(FAT_DirectoryEntry);
 }
-void FAT_Close(FAT_File *file){
+
+void FAT_Close(DISK *disk, FAT_File *file){
     if(file->Handle == ROOT_DIRECTORY_HANDLE){
         file->Position = 0;
         g_Data->RootDirectory.CurrentCluster = g_Data->RootDirectory.FirstCluster;
     } else {
-        g_Data->OpenedFiles[file->Handle].Opened = 0;
+        FAT_FileData *fd = &g_Data->OpenedFiles[file->Handle];
+        fd->Opened = 0;
+        FAT_writeSectors(disk, FAT_ClusterToLba(g_Data->OpenedFiles[file->Handle].CurrentCluster), 1, fd->Buffer);
     }
 }

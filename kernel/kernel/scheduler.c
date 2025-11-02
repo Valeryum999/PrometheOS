@@ -12,7 +12,6 @@ void initialize_multiprocessing(task_struct *idle_task_copy){
 }
 
 void schedule(Registers *regs){
-    printf("Switching\n");
     switch_to_task(current_task_PCB->next);
 }
 
@@ -30,13 +29,4 @@ void add_process_to_schedule(task_struct *next_task){
 
 void __attribute__((naked)) task_entry(){
     asm volatile("ret");
-}
-
-void exit_process(){
-    task_struct *previous_task = current_task_PCB;
-    while(previous_task->next != current_task_PCB){
-        previous_task = previous_task->next;
-    }
-    previous_task->next = current_task_PCB->next;
-    switch_to_task(current_task_PCB->next);
 }

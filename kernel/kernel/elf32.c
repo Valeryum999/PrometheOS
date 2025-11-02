@@ -320,11 +320,17 @@ ELF32_File ELF_parseFile(void* baseAddr) {
     file.programHeaders = baseAddr + file.header->ProgramHeaderTablePosition;
     file.sectionHeaders = baseAddr + file.header->SectionHeaderTablePosition;
     ELF32SectionHeader *symTable = findSectionHeader(&file, SHT_SYMTAB);
+    if(symTable == NULL){
+        printf("ERROR! couldn't find symbol table!\n");
+        return file;
+    }
     file.symTable = (uint32_t)baseAddr + symTable->sh_offset;
-    printf("Symtable @ %x\n", file.symTable - (uint32_t)baseAddr);
     ELF32SectionHeader *strTable = findSectionHeader(&file, SHT_STRTAB);
+    if(strTable == NULL) {
+        printf("ERROR! couldn't find string table!\n");
+        return file;
+    }
     file.strTable = (uint32_t)baseAddr + strTable->sh_offset;
-    printf("StrTable @ %x %x\n", strTable, file.strTable);
     return file;
 }
 

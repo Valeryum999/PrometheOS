@@ -27,6 +27,7 @@ task_struct load_process_ELF(void *buf, void *page_directory){
     process.ELFfile = &file;
     process.eip = (void *)process.ELFfile->header->ProgramEntryPosition;
     ELF_load(process.ELFfile);
+    process.openedFiles = 0;
     return process;
 }
 

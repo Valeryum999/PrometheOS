@@ -11,7 +11,7 @@
 #define ROOT_DIRECTORY_HANDLE -1
 
 #define MEMORY_MIN          0x00000500
-#define MEMORY_MAX          0x00080000
+#define MEMORY_MAX          0x000B8000
 
 #define MEMORY_FAT_ADDR     (void *)0x00000500
 #define MEMORY_FAT_SIZE     0x00010000
@@ -91,7 +91,8 @@ void FAT_Initialize(DISK *disk);
 FAT_File *FAT_OpenEntry(DISK *disk, FAT_DirectoryEntry *entry);
 FAT_File *FAT_Open(DISK *disk, const char *path);
 int FAT_Read(DISK *disk, FAT_File *file, uint32_t byteCount, void *buf);
+int FAT_Write(DISK *disk, FAT_File *file, uint32_t len, void *buf);
 int FAT_ReadEntry(DISK *disk, FAT_File *file, FAT_DirectoryEntry *dirEntry);
-void FAT_Close(FAT_File *file);
+void FAT_Close(DISK *disk, FAT_File *file);
 
 #endif

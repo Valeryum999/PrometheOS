@@ -7,6 +7,7 @@
 
 #include <kernel/pager.h>
 #include <kernel/elf.h>
+#include <fs/fat.h>
 
 typedef struct task_struct{
 	void *esp;
@@ -14,8 +15,11 @@ typedef struct task_struct{
     void *cr3;
     struct task_struct *next;
     void *eip;
+    int id;
     uint8_t state;
 	ELF32_File *ELFfile;
+    uint8_t openedFiles;
+    FAT_File *fd[5];
 } task_struct;
 
 task_struct load_process(void *buf);
