@@ -8,7 +8,9 @@
 #define PAGE_SIZE 4096  // Size of each page (4KB)
 
 void init_stack();
-void *malloc();
+void *kalloc_page_frame();
+void *kalloc(size_t page_frames);
 void free(void *ptr);
+void free_page_frames(void *start_addr, size_t page_frames);
 
 #endif

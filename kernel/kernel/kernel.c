@@ -19,7 +19,9 @@
 
 extern uint32_t end_lowtext;
 extern uint32_t end_kernel;
-DISK *disk = (DISK *)0xc0026000;
+extern void kpanic();
+
+DISK *disk = (DISK *)0xc0028000;
 
 void timer(Registers *regs){
 	
@@ -41,8 +43,8 @@ void kernel_main(void) {
 	init_stack();
 	init_keyboard();
 	printf("Hello World!\n");
-	printf("before initialize\n");
 	FAT_Initialize(disk);
+	FAT_printBootSector();
 	uint32_t helloA = (uint32_t)(disk) + 0x4400;
 	// uint8_t fileBuf[0x2230];
 	// printf("after initialize\n");
@@ -71,4 +73,5 @@ void kernel_main(void) {
 	while(1){
 		
 	}
+	kpanic();
 }

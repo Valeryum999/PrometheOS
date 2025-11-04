@@ -87,11 +87,26 @@ enum FAT_Attributes {
     FAT_ATTRIBUTE_LFN           = FAT_ATTRIBUTE_READ_ONLY | FAT_ATTRIBUTE_HIDDEN | FAT_ATTRIBUTE_SYSTEM | FAT_ATTRIBUTE_VOLUME_ID
 };
 
+typedef struct {
+    BootSector BootSector;
+    FAT_FileData RootDirectory;
+    FAT_FileData OpenedFiles[MAX_FILE_HANDLES];
+} FAT_Data;
+
+#define SEEK_SET 0
+#define SEEK_CUR 1
+#define SEEK_END 2
+
 void FAT_Initialize(DISK *disk);
+void FAT_printBootSector();
 FAT_File *FAT_OpenEntry(DISK *disk, FAT_DirectoryEntry *entry);
 FAT_File *FAT_Open(DISK *disk, const char *path);
+void FAT_filename_to_FATfilename(const char *name, char *fatName);
+int FAT_findFile(DISK *disk, FAT_File *file, const char *name, FAT_DirectoryEntry *entryOut);
 int FAT_Read(DISK *disk, FAT_File *file, uint32_t byteCount, void *buf);
 int FAT_Write(DISK *disk, FAT_File *file, uint32_t len, void *buf);
+int FAT_LSeek(DISK *disk, FAT_File *file, uint32_t offset, uint32_t whence);
+int FAT_CopyFile(DISK *disk, const char *old_name, const char *new_name);
 int FAT_ReadEntry(DISK *disk, FAT_File *file, FAT_DirectoryEntry *dirEntry);
 void FAT_Close(DISK *disk, FAT_File *file);
 

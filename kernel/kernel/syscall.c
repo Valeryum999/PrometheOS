@@ -16,8 +16,10 @@ uint32_t ExitHandler(Registers *regs){
 }
 
 uint32_t ForkHandler(Registers *regs){
-    printf("Fork Handler, for now stubbed\n");
-    return 0;
+    task_struct child = load_process(current_task_PCB->ELFfile);
+    child.eip = (void *)regs->eip;
+    add_process_to_schedule(&child);
+    return child.id;
 }
 
 uint32_t ReadHandler(Registers *regs){
@@ -55,42 +57,60 @@ uint32_t CloseHandler(Registers *regs){
     uint32_t fd = regs->ebx;
     if(fd < 3){
         // can't close stdin stdout stderr?
-        return 0;
+        return -1;
     }
     fd -= 3;
     FAT_Close(disk, current_task_PCB->fd[fd]);
     //what to do with dangling fd?
+    //current_task_PCB->fd[fd] = NULL;
     return 0;
 }
 
 uint32_t WaitPidHandler(Registers *regs){
+    uint32_t pid = regs->ebx;
     printf("Wait PID Handler, for now stubbed\n");
     return 0;
 }
 
 uint32_t LinkHandler(Registers *regs){
-    printf("Link handler, for now stubbed\n");
-    return 0;
+    const char *old_name = (const char *)regs->ebx;
+    const char *new_name = (const char *)regs->ecx;
+    return FAT_CopyFile(disk, old_name, new_name);
 }
 
 uint32_t UnlinkHandler(Registers *regs){
+    const char *pathname = (const char *)regs->ebx;
     printf("Unlink handler, for now stubbed\n");
     return 0;
 }
 
 uint32_t ExecveHandler(Registers *regs){
+    const char *filename = (const char *)regs->ebx;
+    const char **argv = (const char **)regs->ecx;
+    const char **envp = (const char **)regs->edx;
     printf("Execve handler, for now stubbed\n");
-    return 0;
+    // should be the content of the ELF_File obtained by searching the filename
+    task_struct new_process = load_process(NULL); 
+    asm volatile("jmp %0" :: "r"(new_process.eip));
+    return 0; // should not return
 }
 
 uint32_t LSeekHandler(Registers *regs){
-    printf("LSeek handler, for now stubbed\n");
-    return 0;
+    uint32_t fd = regs->ebx;
+    if(fd < 3){
+        return -1; //still don't know how to handle stdin, stdout and stderr
+    }
+    fd -= 3;
+    if(current_task_PCB->fd[fd] == NULL){
+        return -1;
+    }
+    uint32_t offset = regs->ecx;
+    uint32_t whence = regs->edx;
+    return FAT_LSeek(disk, current_task_PCB->fd[fd], offset, whence);
 }
 
 uint32_t GetPidHandler(Registers *regs){
-    printf("GetPid handler, for now stubbed\n");
-    return 0;
+    return current_task_PCB->id;
 }
 
 uint32_t KillHandler(Registers *regs){
@@ -105,6 +125,7 @@ uint32_t TimesHandler(Registers *regs){
 
 uint32_t StatHandler(Registers *regs){
     printf("Stat handler, for now stubbed\n");
+    //FAT_File *root_dir = FAT_Open(disk, "/");
     return 0;
 }
 

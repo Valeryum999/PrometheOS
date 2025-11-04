@@ -2,6 +2,7 @@
 #define _KERNEL_SYSCALL_H
 
 #include <kernel/scheduler.h>
+#include <kernel/page_frame_allocator.h>
 
 #define EXIT 1
 #define FORK 2

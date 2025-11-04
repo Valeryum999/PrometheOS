@@ -1,6 +1,7 @@
 #include <kernel/process.h>
 
 uint32_t kernel_page_directory;
+uint32_t count_process_id = 0;
 extern void __attribute__((naked)) task_entry(void *first_eip);
 
 void *map_page_directory_kernel(){
@@ -50,5 +51,6 @@ task_struct load_process(void *buf){
 
     write_cr3(kernel_page_directory & ~0xfff);
     
+    process.id = count_process_id++;
     return process;
 }

@@ -70,13 +70,13 @@ void *get_physaddr(void *virtualaddr) {
 }
 
 void malloc_page_table(uint32_t page_directory_index){
-    uint32_t *page_table = (uint32_t *)malloc();
+    uint32_t *page_table = (uint32_t *)kalloc_page_frame();
     virtual_page_directory[page_directory_index] = ((uint32_t)page_table) | PAGE_USER | PAGE_WRITABLE | PAGE_PRESENT;
 }
 
 void *mmap(void *virtualaddr, unsigned int flags) {
     //TODO: Make sure that both addresses are page-aligned.
-    void *physaddr = malloc();
+    void *physaddr = kalloc_page_frame();
     if(virtualaddr == NULL)
         virtualaddr = physaddr;
 
