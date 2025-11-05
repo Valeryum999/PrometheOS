@@ -1,9 +1,5 @@
-*.o
-*.bin
-*.iso
-isodir
-obj
-sysroot
 .vscode
 .gdb_history
 .gdbinit
+/obj
+/sysroot
