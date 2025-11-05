@@ -7,10 +7,10 @@ DESTDIR = obj
 #CC = clang --target=$(TARGET_ARCH)-unknown-none-elf
 CC = i686-elf-gcc
 LD = $(CC) 
-AR = i686-elf-ar 
+AR = i686-elf-ar
 GRUB = grub
 
-override LDFLAGS += -T $(ARCHDIR)/linker.ld -g -Og -ffreestanding --sysroot=/home/valeryum/Desktop/kernel/sysroot -isystem=/usr/include -Wall -Wextra -nostdlib -lk -lgcc
+override LDFLAGS += -T $(ARCHDIR)/linker.ld -g -Og -ffreestanding --sysroot=/home/valeryum/Desktop/kernel/sysroot -isystem=/usr/include -Wall -Wextra -nostdlib
 override CFLAGS += -g -Og -std=gnu11 -ffreestanding --sysroot=/home/valeryum/Desktop/kernel/sysroot -isystem=/usr/include -Wall -Wextra -D__is_kernel -Iinclude
 LIBK_FLAGS = -g -Og -std=gnu11 -ffreestanding --sysroot=/home/valeryum/Desktop/kernel/sysroot -isystem=/usr/include -Wall -Wextra -D__is_libc -Iinclude -D__is_libk 
 ARCHDIR = arch/$(TARGET_ARCH)
@@ -41,7 +41,7 @@ $(DESTDIR)/prometheos.iso: $(DESTDIR)/prometheos.kernel
 	$(GRUB)-mkrescue -o $(DESTDIR)/prometheos.iso $(DESTDIR)/iso
 
 $(DESTDIR)/prometheos.kernel: $(OBJS) $(ARCHDIR)/linker.ld libk.a
-	$(LD) $(LDFLAGS) -o $@ $(OBJS) libk.a
+	$(LD) $(LDFLAGS) -o $@ $(OBJS) -lk -lgcc
 	$(GRUB)-file --is-x86-multiboot $@
 
 libk.a: $(LIBK_OBJS)
