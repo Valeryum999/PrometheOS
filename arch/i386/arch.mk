@@ -14,3 +14,4 @@ ARCH_OBJS= \
 	$(DESTDIR)/$(ARCHDIR)/process.o \
 	$(DESTDIR)/$(ARCHDIR)/crti.o \
 	$(DESTDIR)/$(ARCHDIR)/crtn.o \
+	$(DESTDIR)/$(ARCHDIR)/syscall.o \

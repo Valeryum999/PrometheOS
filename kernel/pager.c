@@ -70,18 +70,21 @@ void *get_physaddr(void *virtualaddr) {
 }
 
 void malloc_page_table(uint32_t page_directory_index){
-    uint32_t *page_table = (uint32_t *)malloc();
+    uint32_t *page_table = (uint32_t *)kalloc_page_frame();
     virtual_page_directory[page_directory_index] = ((uint32_t)page_table) | PAGE_USER | PAGE_WRITABLE | PAGE_PRESENT;
 }
 
 void *mmap(void *virtualaddr, unsigned int flags) {
     //TODO: Make sure that both addresses are page-aligned.
+    void *physaddr = kalloc_page_frame();
+    if(virtualaddr == NULL)
+        virtualaddr = physaddr;
 
     uint32_t page_directory_index = (uint32_t)virtualaddr >> 22;
     uint32_t page_table_index = (uint32_t)virtualaddr >> 12 & 0x3FF;
 
     uint32_t *page_table = (uint32_t *)(0xffc00000 + page_directory_index*PAGE_SIZE);
-    void *physaddr = malloc();
+    
     if(!(virtual_page_directory[page_directory_index] & PAGE_PRESENT)){
         malloc_page_table(page_directory_index);
     }
@@ -90,7 +93,17 @@ void *mmap(void *virtualaddr, unsigned int flags) {
 
 
     return virtualaddr;
-    // printf("page table entry at %d: %x\n",page_table_index,page_table[page_table_index]);
     // Now you need to flush the entry in the TLB
     // or you might not notice the change.
+}
+
+void unmap(void *virtualaddr){
+    void *phys_addr = get_physaddr(virtualaddr);
+    uint32_t page_directory_index = (uint32_t)virtualaddr >> 22;
+    uint32_t page_table_index = (uint32_t)virtualaddr >> 12 & 0x3FF;
+    uint32_t *page_table = (uint32_t *)(0xffc00000 + page_directory_index*PAGE_SIZE);
+    
+    page_table[page_table_index] = 0;
+
+    free(phys_addr);
 }

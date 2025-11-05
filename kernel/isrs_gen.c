@@ -2,6 +2,8 @@
 #include <kernel/idt.h>
 #include <kernel/gdt.h>
 
+
+void __attribute__((cdecl)) syscall_entry();
 void __attribute__((cdecl)) ISR0();
 void __attribute__((cdecl)) ISR1();
 void __attribute__((cdecl)) ISR2();
@@ -130,7 +132,7 @@ void __attribute__((cdecl)) ISR124();
 void __attribute__((cdecl)) ISR125();
 void __attribute__((cdecl)) ISR126();
 void __attribute__((cdecl)) ISR127();
-void __attribute__((cdecl)) ISR128();
+// void __attribute__((cdecl)) ISR128();
 void __attribute__((cdecl)) ISR129();
 void __attribute__((cdecl)) ISR130();
 void __attribute__((cdecl)) ISR131();
@@ -388,7 +390,7 @@ void ISR_InitializeGates() {
     setIDTGate(125, ISR125, GDT_CODE_SEGMENT, IDT_FLAG_RING0 | IDT_FLAG_GATE_32BIT_INT);
     setIDTGate(126, ISR126, GDT_CODE_SEGMENT, IDT_FLAG_RING0 | IDT_FLAG_GATE_32BIT_INT);
     setIDTGate(127, ISR127, GDT_CODE_SEGMENT, IDT_FLAG_RING0 | IDT_FLAG_GATE_32BIT_INT);
-    setIDTGate(128, ISR128, GDT_CODE_SEGMENT, IDT_FLAG_RING0 | IDT_FLAG_GATE_32BIT_INT);
+    setIDTGate(128, syscall_entry, GDT_CODE_SEGMENT, IDT_FLAG_RING0 | IDT_FLAG_GATE_32BIT_INT);
     setIDTGate(129, ISR129, GDT_CODE_SEGMENT, IDT_FLAG_RING0 | IDT_FLAG_GATE_32BIT_INT);
     setIDTGate(130, ISR130, GDT_CODE_SEGMENT, IDT_FLAG_RING0 | IDT_FLAG_GATE_32BIT_INT);
     setIDTGate(131, ISR131, GDT_CODE_SEGMENT, IDT_FLAG_RING0 | IDT_FLAG_GATE_32BIT_INT);

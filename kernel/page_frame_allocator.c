@@ -36,10 +36,23 @@ void init_stack(){
     stack.top = MAX_PAGES - 1;
 }
 
-void *malloc(){
+void *kalloc_page_frame(){
     return (void *) pop();
+}
+
+void *kalloc(size_t page_frames){
+    if(page_frames == 0) return NULL;
+    void *return_address = kalloc_page_frame();
+    for(size_t i=1; i<page_frames; i++)
+        pop();
 }
 
 void free(void *ptr){
     push((uint8_t *)ptr);
+}
+
+void free_page_frames(void *start_addr, size_t page_frames){
+    for(size_t i=0; i<page_frames; i++){
+        free(start_addr + PAGE_SIZE*i);
+    }
 }

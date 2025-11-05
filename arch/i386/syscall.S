@@ -1,21 +1,9 @@
-.macro  ISR_NOERRORCODE num
-.global  ISR\num
-ISR\num:
-    pushl   $0
-    pushl   $\num
-    jmp     isr_common
-.endm
+.global syscall_entry
+syscall_entry:
+    jmp executeSyscall
 
-.macro ISR_ERRORCODE num
-.global ISR\num
-ISR\num:
-    pushl   $\num
-    jmp     isr_common
-.endm
-
-.include "arch/i386/isrs_gen.inc"
-
-isr_common:
+.global executeSyscall
+executeSyscall:
     pushal
     xor %eax, %eax
     mov %ds, %ax
@@ -28,8 +16,11 @@ isr_common:
     mov %ax, %gs
 
     push %esp
-    call ISR_Handler
+    
+    call SyscallHandler
+
     add $4, %esp
+    mov %eax, 32(%esp)  # set return code
 
     pop %eax        #restore all segments previously stored
     mov %ax, %ds
@@ -38,5 +29,4 @@ isr_common:
     mov %ax, %gs
 
     popal
-    add $8, %esp
     iret

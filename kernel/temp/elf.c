@@ -5,6 +5,7 @@
 #include <sys/mman.h>
 #include <elf.h>
 #include <unistd.h>
+#include <fcntl.h>
 
 const char *elfTypeStr[5] = {
     "UNKNOWN",

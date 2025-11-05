@@ -2,7 +2,7 @@
 #define _KERNEL_ELF_H
 
 #define ELF_MAGIC 0x464c457f
-
+//find /b 0xc0000000, 0xc2000000, 0x7f,0x45,0x4c,0x46
 #include <stdint.h>
 #include <stddef.h>
 #include <stdio.h>

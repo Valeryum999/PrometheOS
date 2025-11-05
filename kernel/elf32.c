@@ -312,19 +312,25 @@ void ELF_printMapping(void *addr, uint32_t size, uint32_t flags, uint32_t offset
 ELF32_File ELF_parseFile(void* baseAddr) {
     ELF32_File file;
     file.header = baseAddr;
-    // if(file.header->Magic != ELF_MAGIC){
-    //     printf("Error in parsing ELF file @ %x\n", baseAddr);
-    //     printf("file header magic bytes: %x\n", file.header->Magic);
-    //     return file;
-    // }
+    if(file.header->Magic != ELF_MAGIC){
+        printf("Error in parsing ELF file @ %x\n", baseAddr);
+        printf("file header magic bytes: %x\n", file.header->Magic);
+        return file;
+    }
     file.programHeaders = baseAddr + file.header->ProgramHeaderTablePosition;
     file.sectionHeaders = baseAddr + file.header->SectionHeaderTablePosition;
     ELF32SectionHeader *symTable = findSectionHeader(&file, SHT_SYMTAB);
+    if(symTable == NULL){
+        printf("ERROR! couldn't find symbol table!\n");
+        return file;
+    }
     file.symTable = (uint32_t)baseAddr + symTable->sh_offset;
-    printf("Symtable @ %x\n", file.symTable - (uint32_t)baseAddr);
     ELF32SectionHeader *strTable = findSectionHeader(&file, SHT_STRTAB);
+    if(strTable == NULL) {
+        printf("ERROR! couldn't find string table!\n");
+        return file;
+    }
     file.strTable = (uint32_t)baseAddr + strTable->sh_offset;
-    printf("StrTable @ %x %x\n", strTable, file.strTable);
     return file;
 }
 

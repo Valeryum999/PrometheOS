@@ -3,9 +3,11 @@
 
 #define MAX_OPEN_FILES 10
 #define MAX_PATH 255
+#define KERNEL_PAGE_DIRECTORY_INDEX 768
 
 #include <kernel/pager.h>
 #include <kernel/elf.h>
+#include <fs/fat.h>
 
 typedef struct task_struct{
 	void *esp;
@@ -13,8 +15,11 @@ typedef struct task_struct{
     void *cr3;
     struct task_struct *next;
     void *eip;
+    int id;
     uint8_t state;
 	ELF32_File *ELFfile;
+    uint8_t openedFiles;
+    FAT_File *fd[5];
 } task_struct;
 
 task_struct load_process(void *buf);
