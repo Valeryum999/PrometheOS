@@ -342,13 +342,25 @@ void ELF_load(ELF32_File *file){
             void *page = (void *)align_page((size_t)addr);
             uint32_t offset = (uint32_t)(file->header) + file->programHeaders[i].Offset;
             ELF_printMapping(addr,
-                            file->programHeaders[i].FileSize,
+                            file->programHeaders[i].MemorySize,
                             file->programHeaders[i].Flags,
                             offset,
                             page);
-            
-            void *result = mmap(page, PAGE_WRITABLE | PAGE_USER);
-            memcpy(result, (void *)offset, file->programHeaders[i].FileSize);
+
+            printf("Copying from %x + %x for %x bytes\n", baseAddr, file->programHeaders[i].Offset, file->programHeaders[i].FileSize);
+            void *result = mmap(page, file->programHeaders[i].MemorySize, PAGE_WRITABLE | PAGE_USER, MAP_ANONYMOUS, -1, 0);
+            memcpy(addr, (void *)offset, file->programHeaders[i].FileSize);
+            if(file->programHeaders[i].MemorySize > file->programHeaders[i].FileSize){
+                // have to zero out data
+                printf("Zeroing out data from %x to %x\n",
+                        file->programHeaders[i].FileSize,
+                        file->programHeaders[i].MemorySize);
+                // uint8_t *zero = (uint8_t *)(offset + file->programHeaders[i].FileSize);
+                // for(size_t j=file->programHeaders[i].FileSize; j<file->programHeaders[i].MemorySize; j++){
+                //     *zero = 0;
+                //     zero++;
+                // }
+            }
         }
     }
 }

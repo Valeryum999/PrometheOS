@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#define MAX_PAGES 1000  // 1043000
+#define MAX_PAGES 10000
 #define PAGE_SIZE 4096  // Size of each page (4KB)
 
 void init_stack();

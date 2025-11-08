@@ -56,10 +56,7 @@ void FAT_Initialize(DISK *disk) {
         return;
     }
 
-    if(!FAT_readFAT(disk, g_Data->BootSector.ReservedSectors, g_FAT) || 
-       !FAT_readFAT(disk, 
-                g_Data->BootSector.ReservedSectors+g_Data->BootSector.SectorsPerFat,
-                g_SecondFAT)){
+    if(!FAT_readFAT(disk, g_Data->BootSector.ReservedSectors, g_FAT)){
         printf("FAT: read FAT failed\n");
         return;
     }
@@ -169,7 +166,7 @@ int FAT_findFile(DISK *disk, FAT_File *file, const char *name, FAT_DirectoryEntr
     char fatName[11];
     FAT_filename_to_FATfilename(name, fatName);
     printf("Transformed fat name: ");
-    print(fatName, 11);
+    printf("%s",fatName);
     printf("\n");
     while(FAT_ReadEntry(disk, file, &entry)){
         if(memcmp(fatName, entry.Name, 11) == 0){

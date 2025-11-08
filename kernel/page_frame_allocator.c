@@ -1,6 +1,8 @@
 #include <kernel/page_frame_allocator.h>
 #include <stdio.h>
 
+extern void kpanic();
+
 typedef struct {
     uint8_t *arr[MAX_PAGES];
     int top;
@@ -20,6 +22,7 @@ static void push(uint8_t *value) {
 static uint8_t *pop() {
     if (stack.top == -1) {
         printf("Stack is empty\n");
+        kpanic();
         return NULL;
     }
     uint8_t *popped = stack.arr[stack.top];

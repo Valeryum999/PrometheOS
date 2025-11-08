@@ -6,6 +6,7 @@ syscall_entry:
 executeSyscall:
     pushal
     xor %eax, %eax
+
     mov %ds, %ax
     push %eax       # add ds to the registers
 
@@ -13,7 +14,7 @@ executeSyscall:
     mov %ax, %ds
     mov %ax, %es
     mov %ax, %fs
-    mov %ax, %gs
+    #mov %ax, %gs
 
     push %esp
     
@@ -26,7 +27,9 @@ executeSyscall:
     mov %ax, %ds
     mov %ax, %es
     mov %ax, %fs
-    mov %ax, %gs
+
+    #pop %eax        #restore gs segment
+    #mov $0x18, %gs
 
     popal
     iret

@@ -20,3 +20,26 @@ load_GDT:
     mov %ebp, %esp
     pop %ebp
     ret
+
+.global reload_GDT
+reload_GDT:
+    push %ebp
+    mov %esp, %ebp
+
+    mov 8(%esp), %eax
+    
+    mov 12(%esp), %ax
+    mov %ax, %cs
+
+    mov 16(%esp), %ax
+    mov %ax, %ds
+    mov %ax, %es
+    mov %ax, %fs
+    mov %ax, %ss
+
+    mov 20(%esp), %ax
+    mov %ax, %gs
+
+    mov %ebp, %esp
+    pop %ebp
+    ret

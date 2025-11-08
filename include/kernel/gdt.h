@@ -63,7 +63,9 @@ typedef enum {
 
 #define GDT_CODE_SEGMENT 0x08
 #define GDT_DATA_SEGMENT 0x10
+#define GDT_GSBASE_SEGMENT 0x18
 
 void init_GDT(void);
+int change_gs_base(uint32_t base);
 
 #endif

@@ -1,8 +1,11 @@
 #ifndef _KERNEL_SYSCALL_H
 #define _KERNEL_SYSCALL_H
 
+#include <kernel/gdt.h>
 #include <kernel/scheduler.h>
 #include <kernel/page_frame_allocator.h>
+
+//b *0xc00061b5
 
 #define EXIT 1
 #define FORK 2
@@ -18,7 +21,10 @@
 #define GET_PID 20
 #define KILL    37
 #define TIMES 43
+#define MMAP 90
+#define MUNMAP 91
 #define STAT 106
 #define FSTAT 108
+#define ARCH_PRCTL 384
 
 #endif

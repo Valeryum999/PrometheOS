@@ -16,13 +16,8 @@ void schedule(Registers *regs){
 }
 
 void add_process_to_schedule(task_struct *next_task){
-    if(current_task_PCB == NULL){
-        current_task_PCB = next_task;
-        current_task_PCB->next = current_task_PCB;
-    } else {
-        next_task->next = current_task_PCB->next;
-        current_task_PCB->next = next_task;
-    }
+    next_task->next = current_task_PCB->next;
+    current_task_PCB->next = next_task;
     printf("CR3: %x\n",next_task->cr3);
     printf("Added task ELF: %x\n", next_task->ELFfile);
 }

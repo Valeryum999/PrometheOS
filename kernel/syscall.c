@@ -4,8 +4,13 @@ extern void kpanic();
 extern DISK *disk;
 extern task_struct *current_task_PCB;
 
+uint32_t MLibcLog(Registers *regs){
+    printf("%s\n", regs->ebx);
+    return 0;
+}
+
 uint32_t ExitHandler(Registers *regs){
-    printf("Exit handler\n");
+    printf("Exited with status code %d\n", regs->eax);
     task_struct *previous_task = current_task_PCB;
     while(previous_task->next != current_task_PCB){
         previous_task = previous_task->next;
@@ -134,8 +139,36 @@ uint32_t FStatHandler(Registers *regs){
     return 0;
 }
 
+uint32_t MMAPHandler(Registers *regs){
+    void *virtual_addr = (void *)regs->ebx;
+    size_t size = (size_t)regs->ecx;
+    int prot = (int)regs->edx;
+    int flags = (int)regs->esi;
+    int fd = (int)regs->edi;
+    uint32_t offset = regs->ebp;
+    printf("mmap @ %x + %x with prot %x flags %x fd %x offset %x\n",
+            virtual_addr,
+            size,
+            prot,
+            flags,
+            fd,
+            offset);
+    return (uint32_t)mmap(virtual_addr, size, prot, flags, fd, offset);
+}
+
+uint32_t ArchPRCTLHandler(Registers *regs){
+    return change_gs_base(regs->ebx);
+}
+
+uint32_t GenericSyscall(Registers *regs){
+    printf("Unhandled syscall: %d\n", regs->eax);
+    return 0;
+}
+
 uint32_t SyscallHandler(Registers *regs){
     switch(regs->eax){
+        case 0:
+            return MLibcLog(regs);
         case EXIT:
             return ExitHandler(regs);
         case FORK:
@@ -168,14 +201,12 @@ uint32_t SyscallHandler(Registers *regs){
             return StatHandler(regs);
         case FSTAT:
             return FStatHandler(regs);
+        case MMAP:
+            return MMAPHandler(regs);
+        case ARCH_PRCTL:
+            return ArchPRCTLHandler(regs);
         default:
-            printf("Unhandled syscall %d\n", regs->interrupt);
-            printf("  eax=%x ebx=%x ecx=%x edx=%x esi=%x edi=%x\n",
-                regs->eax, regs->ebx, regs->ecx, regs->edx, regs->esi, regs->edi);
-            printf("  esp=%x ebp=%x eip=%x eflags=%x cs=%x ds=%x ss=%x\n",
-                regs->esp, regs->ebp, regs->eip, regs->eflags, regs->cs, regs->ds, regs->ss);
-            printf("  interrupt=%x errorcode=%x\n", regs->interrupt, regs->error);
-            printf("KERNEL PANIC!\n");
-            kpanic();
+            return GenericSyscall(regs);
+            // kpanic();
     }
 }
