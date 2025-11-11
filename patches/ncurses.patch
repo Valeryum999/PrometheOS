@@ -1,0 +1,28 @@
+diff --git a/config.sub b/config.sub
+index d74fb6de..62502e54 100755
+--- a/config.sub
++++ b/config.sub
+@@ -1718,7 +1718,7 @@ case $os in
+ 	# Now accept the basic system types.
+ 	# The portable systems comes first.
+ 	# Each alternative MUST end in a * to match a version number.
+-	gnu* | android* | bsd* | mach* | minix* | genix* | ultrix* | irix* \
++	gnu* | prometheos* | android* | bsd* | mach* | minix* | genix* | ultrix* | irix* \
+ 	     | *vms* | esix* | aix* | cnk* | sunos | sunos[34]* \
+ 	     | hpux* | unos* | osf* | luna* | dgux* | auroraux* | solaris* \
+ 	     | sym* |  plan9* | psp* | sim* | xray* | os68k* | v88r* \
+diff --git a/configure b/configure
+index 421cf859..e326e241 100755
+--- a/configure
++++ b/configure
+@@ -6244,6 +6244,10 @@ echo "${ECHO_T}$cf_cv_ldflags_search_paths_first" >&6
+ 			LDFLAGS="$LDFLAGS -Wl,-search_paths_first"
+ 		fi
+ 		;;
++  (prometheos*)
++    CC_SHARED_OPTS=-fPIC
++    MK_SHARED_LIB='${CC} -shared -o $@'
++    ;;
+ 	(haiku*)
+ 
+ 	test "$cf_cv_shlib_version" = auto && cf_cv_shlib_version=rel

@@ -1,0 +1,28 @@
+diff --git a/support/config.sub b/support/config.sub
+index c874b7a9..5533da4f 100755
+--- a/support/config.sub
++++ b/support/config.sub
+@@ -1720,7 +1720,7 @@ case $os in
+ 	     | skyos* | haiku* | rdos* | toppers* | drops* | es* \
+ 	     | onefs* | tirtos* | phoenix* | fuchsia* | redox* | bme* \
+ 	     | midnightbsd* | amdhsa* | unleashed* | emscripten* | wasi* \
+-	     | nsk* | powerunix* | genode* | zvmoe* | qnx* | emx*)
++	     | nsk* | powerunix* | genode* | zvmoe* | qnx* | emx* | prometheos*)
+ 		;;
+ 	# This one is extra strict with allowed versions
+ 	sco3.2v2 | sco3.2v[4-9]* | sco5v6*)
+diff --git a/support/shobj-conf b/support/shobj-conf
+index 5a3f9776..bb7fd425 100755
+--- a/support/shobj-conf
++++ b/support/shobj-conf
+@@ -79,6 +79,10 @@ nsk-cc-tandem|nsk-c99-tandem)
+ 	SHOBJ_LDFLAGS='-shared -bglobalized -unres_symbols ignore'
+ 	;;
+ 
++prometheos*-*gcc*)
++	SHOBJ_CFLAGS=-fpic
++	;;
++
+ sunos4*-*gcc*)
+ 	SHOBJ_CFLAGS=-fpic
+ 	SHOBJ_LD=/usr/bin/ld

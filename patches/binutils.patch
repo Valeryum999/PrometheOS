@@ -1,0 +1,128 @@
+diff --git a/bfd/config.bfd b/bfd/config.bfd
+index 4e5a838fe4e..ee5b5a2430a 100644
+--- a/bfd/config.bfd
++++ b/bfd/config.bfd
+@@ -237,6 +237,11 @@ esac
+ case "${targ}" in
+ # START OF targmatch.h
+ #ifdef BFD64
++  x86_64-*prometheos*)
++    targ_defvec=x86_64_elf64_vec
++    targ_selvecs=i386_elf32_vec
++    want64=true
++    ;;
+   aarch64-*-darwin*)
+     targ_defvec=aarch64_mach_o_vec
+     targ_selvecs="arm_mach_o_vec mach_o_le_vec mach_o_be_vec mach_o_fat_vec"
+@@ -349,6 +354,11 @@ case "${targ}" in
+     ;;
+ #endif /* BFD64 */
+ 
++  i[3-7]86-*prometheos*)
++    targ_defvec=i386_elf32_vec
++    targ_selvecs=
++    targ64_selvecs=x86_64_elf64_vec
++    ;;
+   am33_2.0-*-linux*)
+     targ_defvec=am33_elf32_linux_vec
+     ;;
+diff --git a/config.sub b/config.sub
+index 4aaae46f6f7..57d7aacea2a 100755
+--- a/config.sub
++++ b/config.sub
+@@ -2087,6 +2087,7 @@ case $os in
+ 	| powermax* \
+ 	| powerunix* \
+ 	| proelf* \
++	| prometheos* \
+ 	| psos* \
+ 	| psp* \
+ 	| ptx* \
+diff --git a/gas/configure.tgt b/gas/configure.tgt
+index 7c81bffa16b..585f705fa17 100644
+--- a/gas/configure.tgt
++++ b/gas/configure.tgt
+@@ -225,6 +225,7 @@ case ${generic_target} in
+   h8300-*-elf)				fmt=elf ;;
+   h8300-*-linux*)			fmt=elf em=linux ;;
+ 
++  i386-*-prometheos*) fmt=elf ;;
+   i386-*-beospe*)			fmt=coff em=pe ;;
+   i386-*-beos*)				fmt=elf ;;
+   i386-*-elfiamcu)			fmt=elf arch=iamcu ;;
+diff --git a/ld/Makefile.am b/ld/Makefile.am
+index ccff9289924..c7fa08ced87 100644
+--- a/ld/Makefile.am
++++ b/ld/Makefile.am
+@@ -152,6 +152,7 @@ endif
+ 
+ # These all start with e so 'make clean' can find them.
+ ALL_EMULATION_SOURCES = \
++	eelf_i386_prometheos.c \
+ 	eaix5ppc.c \
+ 	eaix5rs6.c \
+ 	eaixppc.c \
+@@ -375,6 +376,7 @@ ALL_EMULATION_SOURCES = \
+ ALL_EMULATIONS = $(ALL_EMULATION_SOURCES:.c=.@OBJEXT@)
+ 
+ ALL_64_EMULATION_SOURCES = \
++	eelf_x86_64_prometheos.c \
+ 	eaarch64cloudabi.c \
+ 	eaarch64cloudabib.c \
+ 	eaarch64elf.c \
+diff --git a/ld/Makefile.in b/ld/Makefile.in
+index 3e24bd4deb2..9936dac9bc8 100644
+--- a/ld/Makefile.in
++++ b/ld/Makefile.in
+@@ -663,6 +663,7 @@ LIBIBERTY = ../libiberty/libiberty.a
+ 
+ # These all start with e so 'make clean' can find them.
+ ALL_EMULATION_SOURCES = \
++	eelf_i386_prometheos.c \
+ 	eaix5ppc.c \
+ 	eaix5rs6.c \
+ 	eaixppc.c \
+@@ -885,6 +886,7 @@ ALL_EMULATION_SOURCES = \
+ 
+ ALL_EMULATIONS = $(ALL_EMULATION_SOURCES:.c=.@OBJEXT@)
+ ALL_64_EMULATION_SOURCES = \
++	eelf_x86_64_prometheos.c \
+ 	eaarch64cloudabi.c \
+ 	eaarch64cloudabib.c \
+ 	eaarch64elf.c \
+@@ -1480,6 +1482,7 @@ distclean-compile:
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eelf_i386_fbsd.Po@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eelf_i386_haiku.Po@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eelf_i386_ldso.Po@am__quote@
++@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eelf_i386_prometheos.Po@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eelf_i386_sol2.Po@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eelf_i386_vxworks.Po@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eelf_iamcu.Po@am__quote@
+@@ -1489,6 +1492,7 @@ distclean-compile:
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eelf_x86_64_cloudabi.Po@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eelf_x86_64_fbsd.Po@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eelf_x86_64_haiku.Po@am__quote@
++@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eelf_x86_64_prometheos.Po@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eelf_x86_64_sol2.Po@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eh8300elf.Po@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eh8300elf_linux.Po@am__quote@
+diff --git a/ld/configure.tgt b/ld/configure.tgt
+index ea01ccf9a1b..70003f3b95e 100644
+--- a/ld/configure.tgt
++++ b/ld/configure.tgt
+@@ -82,6 +82,15 @@ fi
+ # Please try to keep this table more or less in alphabetic order - it
+ # makes it much easier to lookup a specific archictecture.
+ case "${targ}" in
++i[3-7]86-*-prometheos*)
++			targ_emul=elf_x86_64_prometheos
++			targ_extra_emuls=elf_i386
++			targ64_extra_emuls="elf_x86_64_prometheos elf_x86_64"
++			;;
++x86_64-*prometheos*)
++			targ_emul=elf_x86_64_prometheos
++			targ_extra_emuls="elf_i386_prometheos elf_x86_64 elf_i386"
++			;;
+ aarch64_be-*-elf)	targ_emul=aarch64elfb
+ 			targ_extra_emuls="aarch64elf aarch64elf32 aarch64elf32b armelfb armelf"
+ 			;;
