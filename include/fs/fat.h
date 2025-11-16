@@ -7,7 +7,7 @@
 #include <string.h>
 #include <fs/disk.h>
 
-#define SECTOR_SIZE         512
+#define SECTOR_SIZE         0x200
 #define ROOT_DIRECTORY_HANDLE -1
 
 #define MEMORY_MIN          0x00000500

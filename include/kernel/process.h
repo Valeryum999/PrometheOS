@@ -22,7 +22,7 @@ typedef struct task_struct{
     FAT_File *fd[5];
 } task_struct;
 
-task_struct load_process(void *buf);
+int load_process(task_struct *process, void *buf);
 void start_process(task_struct process);
 
 #endif

@@ -10,7 +10,7 @@ uint32_t MLibcLog(Registers *regs){
 }
 
 uint32_t ExitHandler(Registers *regs){
-    printf("Exited with status code %d\n", regs->eax);
+    printf("Exited with status code %d\n", regs->ebx);
     task_struct *previous_task = current_task_PCB;
     while(previous_task->next != current_task_PCB){
         previous_task = previous_task->next;
@@ -21,10 +21,10 @@ uint32_t ExitHandler(Registers *regs){
 }
 
 uint32_t ForkHandler(Registers *regs){
-    task_struct child = load_process(current_task_PCB->ELFfile);
-    child.eip = (void *)regs->eip;
-    add_process_to_schedule(&child);
-    return child.id;
+    // task_struct child = load_process(current_task_PCB->ELFfile);
+    // child.eip = (void *)regs->eip;
+    // add_process_to_schedule(&child);
+    return 0;
 }
 
 uint32_t ReadHandler(Registers *regs){
@@ -55,6 +55,18 @@ uint32_t WriteHandler(Registers *regs){
 uint32_t OpenHandler(Registers *regs){
     const char *path = (const char *)regs->ebx;
     current_task_PCB->fd[current_task_PCB->openedFiles] = FAT_Open(disk, path);
+    return current_task_PCB->openedFiles++ + 3; //to reserve 0,1,2 for stdin, stdout, stderr
+}
+
+uint32_t OpenAtHandler(Registers *regs){
+    int dfd = (int)regs->ebx;
+    const char *path = (const char *)regs->ecx;
+    printf("path: %s\n",path);
+    FAT_File *result = FAT_Open(disk, path);
+    if(result == NULL){
+        return -1;
+    }
+    current_task_PCB->fd[current_task_PCB->openedFiles] = result;
     return current_task_PCB->openedFiles++ + 3; //to reserve 0,1,2 for stdin, stdout, stderr
 }
 
@@ -95,8 +107,8 @@ uint32_t ExecveHandler(Registers *regs){
     const char **envp = (const char **)regs->edx;
     printf("Execve handler, for now stubbed\n");
     // should be the content of the ELF_File obtained by searching the filename
-    task_struct new_process = load_process(NULL); 
-    asm volatile("jmp %0" :: "r"(new_process.eip));
+    // task_struct new_process = load_process(NULL, NULL); 
+    // asm volatile("jmp %0" :: "r"(new_process.eip));
     return 0; // should not return
 }
 
@@ -156,6 +168,14 @@ uint32_t MMAPHandler(Registers *regs){
     return (uint32_t)mmap(virtual_addr, size, prot, flags, fd, offset);
 }
 
+uint32_t MProtectHandler(Registers *regs){
+    void *start = (void *)regs->ebx;
+    size_t size = (size_t)regs->ecx;
+    uint32_t prot = regs->edx;
+    
+    return mprotect(start, size, prot);
+}
+
 uint32_t ArchPRCTLHandler(Registers *regs){
     return change_gs_base(regs->ebx);
 }
@@ -166,6 +186,9 @@ uint32_t GenericSyscall(Registers *regs){
 }
 
 uint32_t SyscallHandler(Registers *regs){
+    if(regs->eax < 92 && regs->eax != 0){
+        printf("Syscall: %s\n", syscall_strings[regs->eax]);
+    }
     switch(regs->eax){
         case 0:
             return MLibcLog(regs);
@@ -179,6 +202,8 @@ uint32_t SyscallHandler(Registers *regs){
             return WriteHandler(regs);
         case OPEN:
             return OpenHandler(regs);
+        case OPENAT:
+            return OpenAtHandler(regs);
         case CLOSE:
             return CloseHandler(regs);
         case WAIT_PID:
@@ -198,12 +223,18 @@ uint32_t SyscallHandler(Registers *regs){
         case TIMES:
             return TimesHandler(regs);
         case STAT:
+            printf("Syscall: STAT\n");
             return StatHandler(regs);
         case FSTAT:
+            printf("Syscall: FSTAT\n");
             return FStatHandler(regs);
         case MMAP:
             return MMAPHandler(regs);
+        case MPROTECT:
+            printf("Syscall: MPROTECT\n");
+            return MProtectHandler(regs);
         case ARCH_PRCTL:
+            printf("Syscall: ARCH_PRCTL\n");
             return ArchPRCTLHandler(regs);
         default:
             return GenericSyscall(regs);

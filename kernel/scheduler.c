@@ -2,6 +2,12 @@
 
 task_struct *current_task_PCB;
 task_struct *idle_task;
+Elf32_auxv_t phdr;
+Elf32_auxv_t ph_entsize;
+Elf32_auxv_t ph_entcount;
+Elf32_auxv_t eip;
+
+const char *env = "LD_SHOW_AUXV=1";
 
 void initialize_multiprocessing(task_struct *idle_task_copy){
     idle_task = idle_task_copy;
@@ -22,6 +28,50 @@ void add_process_to_schedule(task_struct *next_task){
     printf("Added task ELF: %x\n", next_task->ELFfile);
 }
 
+//PH table pointer
+//PH ent_size
+//ph count
+//eip
+//stack entropy?
 void __attribute__((naked)) task_entry(){
-    asm volatile("ret");
+    phdr.a_type = AT_PHDR;
+    phdr.a_un.a_val = 0x8000000 + current_task_PCB->ELFfile->header->ProgramHeaderTablePosition;
+    ph_entsize.a_type = AT_PHENT;
+    ph_entsize.a_un.a_val = current_task_PCB->ELFfile->header->ProgramHeaderTableEntrySize;
+    ph_entcount.a_type = AT_PHNUM;
+    ph_entcount.a_un.a_val = current_task_PCB->ELFfile->header->ProgramHeaderTableEntryCount;
+    eip.a_type = AT_ENTRY;
+    eip.a_un.a_val = (uint32_t)current_task_PCB->eip;
+    asm volatile(
+        "xor %eax, %eax   \n\t"
+        "push %eax         \n\t" 
+        "push %eax         \n\t" //"end" of AUXV
+        "lea phdr, %eax  \n\t"
+        "push 4(%eax)          \n\t" // push value
+        "push (%eax)        \n\t"    // push AT_PHDR
+        "lea ph_entsize, %eax  \n\t"
+        "push 4(%eax)          \n\t" // push value
+        "push (%eax)        \n\t"    // push AT_PHENT
+        "lea ph_entcount, %eax  \n\t"
+        "push 4(%eax)          \n\t" // push value
+        "push (%eax)        \n\t"    // push AT_PHNUM
+        "lea eip, %eax  \n\t"
+        "push 4(%eax)          \n\t" // push value
+        "push (%eax)        \n\t"    // push AT_ENTRY
+        "xor %eax, %eax   \n\t"
+        "push %eax         \n\t" //"end" of env
+        "mov env, %eax  \n\t"
+        "push %eax         \n\t" //env
+        "xor %eax, %eax    \n\t"
+        "push %eax         \n\t" //"end" of argv
+        "push %eax         \n\t" //argc
+        
+        // "mov current_task_PCB, %ebx  \n\t" //eip
+        // "mov 16(%ebx), %eax \n\t" // load eip (first field) into eax
+        "add $0xa20325, %eax \n\t" //PH_INTERP entry point
+        "push %eax         \n\t" //jmp to entry point
+        "xor %ebx, %ebx   \n\t"
+        "xor %eax, %eax   \n\t"
+        "ret"
+    );
 }

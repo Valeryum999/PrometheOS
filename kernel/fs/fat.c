@@ -38,6 +38,7 @@ void FAT_printBootSector(){
     uint32_t rootDirSectors = (rootDirSize + g_Data->BootSector.BytesPerSector - 1) / g_Data->BootSector.BytesPerSector;
     printf("Root directory sectors: %x\n", rootDirSectors);
     printf("Data first cluster: %x\n", g_DataSectionLba);
+    printf("Bytes per sector: %x\n", g_Data->BootSector.BytesPerSector);
 }
 
 void FAT_Initialize(DISK *disk) {
@@ -50,8 +51,7 @@ void FAT_Initialize(DISK *disk) {
 
     g_FAT = (uint8_t *)g_Data + sizeof(FAT_Data);
     uint32_t fatSize = g_Data->BootSector.BytesPerSector * g_Data->BootSector.SectorsPerFat;
-    g_SecondFAT = (uint8_t *)g_FAT + fatSize;
-    if(sizeof(FAT_Data) + fatSize * 2 >= MEMORY_FAT_SIZE){
+    if(sizeof(FAT_Data) + fatSize >= MEMORY_FAT_SIZE){
         printf("FAT: not enough memory to read FAT! Required %x, only have %x\n", sizeof(FAT_Data) + fatSize, MEMORY_FAT_SIZE);
         return;
     }
@@ -155,7 +155,7 @@ void FAT_filename_to_FATfilename(const char *name, char *fatName){
     
     if(ext != (name + 11)){
         ext++;
-        for(int i=0; i<3; i++){
+        for(int i=0; i<3 && ext[i]; i++){
             fatName[i+8] = toupper(ext[i]);
         }
     }
@@ -163,12 +163,13 @@ void FAT_filename_to_FATfilename(const char *name, char *fatName){
 
 int FAT_findFile(DISK *disk, FAT_File *file, const char *name, FAT_DirectoryEntry *entryOut) {
     FAT_DirectoryEntry entry;
-    char fatName[11];
+    char fatName[12];
     FAT_filename_to_FATfilename(name, fatName);
+    fatName[11] = '\0';
     printf("Transformed fat name: ");
     printf("%s",fatName);
     printf("\n");
-    while(FAT_ReadEntry(disk, file, &entry)){
+    while(FAT_ReadEntry(disk, file, &entry) && entry.Name[0] != 0){
         if(memcmp(fatName, entry.Name, 11) == 0){
             *entryOut = entry;
             return 1;
@@ -192,12 +193,12 @@ FAT_File *FAT_Open(DISK *disk, const char *path) {
         const char* delim = strchr(path, '/');
         if(delim != NULL){
             memcpy(name, path, delim - path);
-            name[delim - path + 1] = '\0';
+            name[delim - path] = '\0';
             path = delim + 1;
         } else {
             unsigned len = strlen(path);
             memcpy(name, path, len);
-            name[len + 1] = '\0';
+            name[len] = '\0';
             path += len;
             isLast = 1;
         }
@@ -266,6 +267,14 @@ int FAT_Read(DISK *disk, FAT_File *file, uint32_t byteCount, void *buf) {
                         printf("FAT: cannot read next cluster\n");
                         break; 
                     }
+                } else {
+                    if(!FAT_readSectors(disk, 
+                                        FAT_ClusterToLba(fd->CurrentCluster) + fd->CurrentSectorInCluster, 
+                                        1, 
+                                        fd->Buffer)){
+                        printf("FAT: cannot read next sector\n");
+                        break; 
+                    }
                 }
             }
         }
@@ -295,44 +304,34 @@ int FAT_Write(DISK *disk, FAT_File *file, uint32_t len, void *buf){
 }
 
 int FAT_LSeek(DISK *disk, FAT_File *file, uint32_t offset, uint32_t whence){
-    FAT_FileData *file_data = &g_Data->OpenedFiles[file->Handle];
-    uint32_t current_cluster = file_data->CurrentCluster;
+    FAT_FileData *fd = &g_Data->OpenedFiles[file->Handle];
+    uint32_t current_cluster = fd->CurrentCluster;
     uint32_t return_offset = offset;
     switch(whence){
         case SEEK_SET:
-            file_data->CurrentCluster = file_data->FirstCluster;
-            while(offset > SECTOR_SIZE){ //while the offset is greater than the size of a sector
-                file_data->CurrentCluster = FAT_NextCluster(file_data->CurrentCluster);
+            fd->CurrentCluster = fd->FirstCluster;
+            fd->CurrentSectorInCluster = 0;
+            while(offset > SECTOR_SIZE){
+                if(++fd->CurrentSectorInCluster >= g_Data->BootSector.SectorsPerCluster){
+                    fd->CurrentSectorInCluster = 0;
+                    fd->CurrentCluster = FAT_NextCluster(fd->CurrentCluster);
+                }
                 offset -= SECTOR_SIZE;
             }
-            file_data->Public.Position = offset;
+            fd->Public.Position = offset;
             break;
         case SEEK_CUR:
-            file_data->Public.Position += offset % SECTOR_SIZE; // add only until new sector
-            offset = offset - (offset % SECTOR_SIZE); // remove remainder
-            while(offset > SECTOR_SIZE){
-                file_data->CurrentCluster = FAT_NextCluster(file_data->CurrentCluster);
-                offset -= SECTOR_SIZE;
-            }
-            if(offset){
-                file_data->Public.Position = offset;
-            }
-            break;
         case SEEK_END:
-            file_data->CurrentCluster = file_data->FirstCluster;
-            uint32_t next_cluster = FAT_NextCluster(file_data->CurrentCluster);
-            while(next_cluster < 0xff8){ // either offset was greater than 0x200 or it was less
-                file_data->CurrentCluster = next_cluster;
-                next_cluster = FAT_NextCluster(file_data->CurrentCluster);
-            }
-            file_data->Public.Position = file_data->Public.Size % SECTOR_SIZE;
-            file_data->Public.Position += offset; // TOFIX : i still need to alloc new space for files
-            break;
+            printf("FAT: seek cur and seek end unimplemented yet");
+            return -1;
+        default:
+            printf("FAT: unrecognized whence: %d", whence);
+            return -1;
     }
 
     // only need to refresh buffer if cluster is different (for current implementation)
-    if(current_cluster != file_data->CurrentCluster){
-        if(!FAT_readSectors(disk, FAT_ClusterToLba(file_data->CurrentCluster) + file_data->CurrentSectorInCluster, 1, file_data->Buffer)){
+    if(current_cluster != fd->CurrentCluster){
+        if(!FAT_readSectors(disk, FAT_ClusterToLba(fd->CurrentCluster) + fd->CurrentSectorInCluster, 1, fd->Buffer)){
             printf("FAT: cannot read next cluster\n");
             return -1; 
         }

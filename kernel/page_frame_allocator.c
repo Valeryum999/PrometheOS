@@ -34,7 +34,7 @@ void init_stack(){
     stack.top = -1;
     for(int i=0; i<MAX_PAGES; i++){
         // push((uint8_t *)(0x500000 + i*PAGE_SIZE));
-        stack.arr[MAX_PAGES-1-i] = (uint8_t *)(0x500000 + i*PAGE_SIZE);
+        stack.arr[MAX_PAGES-1-i] = (uint8_t *)(0xb00000 + i*PAGE_SIZE);
     }
     stack.top = MAX_PAGES - 1;
 }

@@ -3,6 +3,8 @@
 
 #define ELF_MAGIC 0x464c457f
 //find /b 0xc0000000, 0xc2000000, 0x7f,0x45,0x4c,0x46
+//for disk
+//find /b 0xc0000000, 0xc2000000, 0xeb, 0x3c, 0x90, 0x6d, 0x6b, 0x66, 0x73
 #include <stdint.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -239,6 +241,30 @@ typedef struct {
 } ELF32_File;
 
 typedef struct {
+  uint32_t a_type;
+  union {
+    uint32_t a_val;
+  } a_un;
+} Elf32_auxv_t;
+
+#define AT_NULL                0                /* End of vector */
+#define AT_IGNORE        1                /* Entry should be ignored */
+#define AT_EXECFD        2                /* File descriptor of program */
+#define AT_PHDR                3                /* Program headers for program */
+#define AT_PHENT        4                /* Size of program header entry */
+#define AT_PHNUM        5                /* Number of program headers */
+#define AT_PAGESZ        6                /* System page size */
+#define AT_BASE                7                /* Base address of interpreter */
+#define AT_FLAGS        8                /* Flags */
+#define AT_ENTRY        9                /* Entry point of program */
+#define AT_NOTELF        10                /* Program is not ELF */
+#define AT_UID                11                /* Real uid */
+#define AT_EUID                12                /* Effective uid */
+#define AT_GID                13                /* Real gid */
+#define AT_EGID                14                /* Effective gid */
+#define AT_CLKTCK        17                /* Frequency of times() */
+
+typedef struct {
     uint32_t page;
     uint32_t size;
     uint32_t flags;
@@ -264,7 +290,7 @@ typedef struct {
     uint8_t rear;
 } queue_t;
 
-ELF32_File ELF_parseFile(void* buf);
-void ELF_load(ELF32_File *file);
+int ELF_parseFile(ELF32_File *file, void* buf);
+int ELF_load(ELF32_File *file);
 
 #endif

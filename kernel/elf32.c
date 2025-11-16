@@ -309,33 +309,39 @@ void ELF_printMapping(void *addr, uint32_t size, uint32_t flags, uint32_t offset
 //     return 0;
 // }
 
-ELF32_File ELF_parseFile(void* baseAddr) {
-    ELF32_File file;
-    file.header = baseAddr;
-    if(file.header->Magic != ELF_MAGIC){
+int ELF_parseFile(ELF32_File *file, void* baseAddr) {
+    file->header = baseAddr;
+    if(file->header->Magic != ELF_MAGIC){
         printf("Error in parsing ELF file @ %x\n", baseAddr);
-        printf("file header magic bytes: %x\n", file.header->Magic);
-        return file;
+        printf("file header magic bytes: %x\n", file->header->Magic);
+        return -1;
     }
-    file.programHeaders = baseAddr + file.header->ProgramHeaderTablePosition;
-    file.sectionHeaders = baseAddr + file.header->SectionHeaderTablePosition;
-    ELF32SectionHeader *symTable = findSectionHeader(&file, SHT_SYMTAB);
+    file->programHeaders = baseAddr + file->header->ProgramHeaderTablePosition;
+    file->sectionHeaders = baseAddr + file->header->SectionHeaderTablePosition;
+    // for(int i=0; i<file->header->SectionHeaderTableEntryCount; i++){
+    //     ELF_printSectionHeader(&file->sectionHeaders[i]);
+    // }
+    ELF32SectionHeader *symTable = findSectionHeader(file, SHT_SYMTAB);
     if(symTable == NULL){
         printf("ERROR! couldn't find symbol table!\n");
-        return file;
+        return -1;
     }
-    file.symTable = (uint32_t)baseAddr + symTable->sh_offset;
-    ELF32SectionHeader *strTable = findSectionHeader(&file, SHT_STRTAB);
+    file->symTable = (uint32_t)baseAddr + symTable->sh_offset;
+    ELF32SectionHeader *strTable = findSectionHeader(file, SHT_STRTAB);
     if(strTable == NULL) {
         printf("ERROR! couldn't find string table!\n");
-        return file;
+        return -1;
     }
-    file.strTable = (uint32_t)baseAddr + strTable->sh_offset;
-    return file;
+    file->strTable = (uint32_t)baseAddr + strTable->sh_offset;
+    return 0;
 }
 
-void ELF_load(ELF32_File *file){
-    uint32_t baseAddr = 0x0;
+int ELF_load(ELF32_File *file){
+    uint32_t baseAddr;
+    if(file->header->Type == ELF_TYPE_EXECUTABLE)
+        baseAddr = 0x0;
+    else
+        baseAddr = 0xa00000;
     for(int i=0; i<file->header->ProgramHeaderTableEntryCount; i++){
         if(file->programHeaders[i].Type == ELF_PROGRAM_TYPE_LOAD){
             void *addr = (void *)(baseAddr + file->programHeaders[i].VirtualAddress);
@@ -349,18 +355,24 @@ void ELF_load(ELF32_File *file){
 
             printf("Copying from %x + %x for %x bytes\n", baseAddr, file->programHeaders[i].Offset, file->programHeaders[i].FileSize);
             void *result = mmap(page, file->programHeaders[i].MemorySize, PAGE_WRITABLE | PAGE_USER, MAP_ANONYMOUS, -1, 0);
+            if(result == NULL){
+                printf("Failed to mmap page %x!\n",page);
+                return -1;
+            }
             memcpy(addr, (void *)offset, file->programHeaders[i].FileSize);
             if(file->programHeaders[i].MemorySize > file->programHeaders[i].FileSize){
                 // have to zero out data
                 printf("Zeroing out data from %x to %x\n",
                         file->programHeaders[i].FileSize,
                         file->programHeaders[i].MemorySize);
-                // uint8_t *zero = (uint8_t *)(offset + file->programHeaders[i].FileSize);
-                // for(size_t j=file->programHeaders[i].FileSize; j<file->programHeaders[i].MemorySize; j++){
-                //     *zero = 0;
-                //     zero++;
-                // }
+                uint8_t *zero = (uint8_t *)(addr + file->programHeaders[i].FileSize);
+                for(size_t j=file->programHeaders[i].FileSize; j<file->programHeaders[i].MemorySize; j++){
+                    *zero = 0;
+                    zero++;
+                }
             }
         }
     }
+
+    return 0;
 }

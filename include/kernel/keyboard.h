@@ -3,8 +3,9 @@
 
 #include <kernel/irq.h>
 #include <kernel/io.h>
+#include <kernel/tty.h>
 
-void keyboard(Registers *regs);
 void init_keyboard();
+void keyboard_callback(Registers *regs);
 
 #endif

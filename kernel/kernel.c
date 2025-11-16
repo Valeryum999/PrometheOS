@@ -21,44 +21,52 @@ extern uint32_t end_lowtext;
 extern uint32_t end_kernel;
 extern void kpanic();
 
-DISK *disk = (DISK *)0xc0031000;
+DISK *disk = (DISK *)0xc050c000;
 
 void timer(Registers *regs){
 	
 }
 
-// 0xc002a400 //hi there
-// 0xc002c600	
-// 0xc002c800 //halt
-// 0xc002fc00 //b
-// 0xc0031e00 //c
-
 void kernel_main(void) {
-	terminal_initialize();
 	init_GDT();
 	init_IDT();
 	init_ISR();
 	i686_IRQ_Initialize();
 	i686_IRQ_RegisterHandler(0, timer);
 	init_stack();
+	terminal_initialize();
 	init_keyboard();
 	printf("Hello World!\n");
-	// FAT_Initialize(disk);
-	// FAT_printBootSector();
-	uint32_t test = (uint32_t)(disk);
-	// uint32_t helloB = (uint32_t)(disk) + 0x9c00;
-	// uint32_t helloC = (uint32_t)(disk) + 0xbe00;
-	task_struct processTestMlibc = load_process((void *)test);
-	// printf("after load process\n");
-	// task_struct processB = load_process((void *)helloB);
-	// task_struct processC = load_process((void *)helloC);
+	printf("End kernel is @ %x\n", &end_kernel);
+	printf("ELF test is @ 0xc0431000\n");
+	printf("physaddr disk: %x ... %x\n", get_physaddr((void *)disk), get_physaddr((void *)disk + 0x3bb9a0));
+	FAT_Initialize(disk);
+	FAT_printBootSector();
+	//everything mapped at the same addr wtf
+	// printf("%x\n", get_physaddr((void *)0xc0032000));
+	// printf("%x\n", get_physaddr((void *)0xc0431000));
+	// printf("%x\n", get_physaddr((void *)0xc0830000));
+	// printf("%x\n", get_physaddr((void *)0xc0c2f000));
+	// printf("%x\n", get_physaddr((void *)0xc102e000));
+	// printf("%x\n", get_physaddr((void *)0xc142d000));
+	// printf("%x\n", get_physaddr((void *)0xc182c000));
+	// printf("%x\n", get_physaddr((void *)0xc1c2b000));
+	// FAT_DirectoryEntry *entryOut;
+	// FAT_File *test_file = FAT_Open(disk, "/usr/lib/ld.so");
+	// uint8_t *buf = mmap((void *)0xd0000000, 0x1000, PROT_READ | PROT_WRITE, MAP_ANONYMOUS, -1, 0);
+	// FAT_Read(disk, test_file, 0x1000, buf);
+	// printf("Size: %x", test_file->Size);
+	// for(int i=0; i<0x1000; i++){
+	// 	printf("%x",buf[i]);
+	// }
+	uint32_t test = 0xc0432000;
+	task_struct *processTestMlibc = mmap((void *)0xd0000000, 0x1000, PROT_READ | PROT_WRITE, MAP_ANONYMOUS, -1, 0);
+	load_process(processTestMlibc, (void *)test);
 	task_struct idle_task;
 	initialize_multiprocessing(&idle_task);
-	add_process_to_schedule(&processTestMlibc);
-	// add_process_to_schedule(&processB);
-	// add_process_to_schedule(&processC);
-	// i686_IRQ_RegisterHandler(0, schedule);
+	add_process_to_schedule(processTestMlibc);
 	schedule();
+	// i686_IRQ_RegisterHandler(0, schedule);
 	while(1){
 		
 	}
