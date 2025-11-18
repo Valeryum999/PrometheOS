@@ -224,6 +224,32 @@ FAT_File *FAT_Open(DISK *disk, const char *path) {
     return current;
 }
 
+int FAT_StatAt(DISK *disk, const char* path, int flags, struct stat* statbuf){
+    FAT_File *file = FAT_Open(disk, path);
+    if(file == NULL)
+        return -1;
+
+    statbuf->st_dev = 1;
+    statbuf->st_mode = 7;
+    statbuf->st_nlink = 0;
+    statbuf->st_uid = 0;
+    statbuf->st_gid = 0;
+    statbuf->st_rdev = 1;
+    statbuf->st_size = file->Size;
+    statbuf->st_blksize = SECTOR_SIZE;
+    statbuf->st_blocks = 1;
+    statbuf->__st_atim32.tv_sec = 0;
+    statbuf->__st_atim32.tv_nsec = 0;
+    statbuf->__st_mtim32.tv_sec = 0;
+    statbuf->__st_mtim32.tv_nsec = 0;
+    statbuf->__st_ctim32.tv_sec = 0;
+    statbuf->__st_ctim32.tv_nsec = 0;
+    statbuf->st_ino = 1;
+
+    FAT_Close(disk, file);
+    return 0;
+}
+
 int FAT_Read(DISK *disk, FAT_File *file, uint32_t byteCount, void *buf) {
     if(file == NULL) return 0;
 
@@ -311,7 +337,7 @@ int FAT_LSeek(DISK *disk, FAT_File *file, uint32_t offset, uint32_t whence){
         case SEEK_SET:
             fd->CurrentCluster = fd->FirstCluster;
             fd->CurrentSectorInCluster = 0;
-            while(offset > SECTOR_SIZE){
+            while(offset >= SECTOR_SIZE){
                 if(++fd->CurrentSectorInCluster >= g_Data->BootSector.SectorsPerCluster){
                     fd->CurrentSectorInCluster = 0;
                     fd->CurrentCluster = FAT_NextCluster(fd->CurrentCluster);
@@ -329,12 +355,9 @@ int FAT_LSeek(DISK *disk, FAT_File *file, uint32_t offset, uint32_t whence){
             return -1;
     }
 
-    // only need to refresh buffer if cluster is different (for current implementation)
-    if(current_cluster != fd->CurrentCluster){
-        if(!FAT_readSectors(disk, FAT_ClusterToLba(fd->CurrentCluster) + fd->CurrentSectorInCluster, 1, fd->Buffer)){
-            printf("FAT: cannot read next cluster\n");
-            return -1; 
-        }
+    if(!FAT_readSectors(disk, FAT_ClusterToLba(fd->CurrentCluster) + fd->CurrentSectorInCluster, 1, fd->Buffer)){
+        printf("FAT: cannot read lseek cluster\n");
+        return -1; 
     }
 
     return return_offset;

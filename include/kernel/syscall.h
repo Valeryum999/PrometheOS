@@ -1,6 +1,9 @@
 #ifndef _KERNEL_SYSCALL_H
 #define _KERNEL_SYSCALL_H
 
+#include <kernel/stat.h>
+#include <kernel/utsname.h>
+#include <kernel/ioctl.h>
 #include <kernel/gdt.h>
 #include <kernel/scheduler.h>
 #include <kernel/page_frame_allocator.h>
@@ -62,8 +65,8 @@ const char syscall_strings[92][9] = {
     "",
     "",
     "",
-    "",
-    "",
+    "IOCTL",
+    "FCNTL",
     "",
     "",
     "",
@@ -113,15 +116,24 @@ const char syscall_strings[92][9] = {
 #define UNLINK 10
 #define EXECVE 11
 #define LSEEK 19
-#define GET_PID 20
+#define GETPID 20
+#define GETUID 24
 #define KILL    37
 #define TIMES 43
+#define GETGID 47
+#define GETEUID 49
+#define GETEGID 50
+#define IOCTL 54
+#define FCNTL 55
 #define MMAP 90
 #define MUNMAP 91
 #define STAT 106
 #define FSTAT 108
 #define MPROTECT 125
+#define UNAME 122
+#define GETPGID 132
 #define OPENAT 295
+#define FSTATAT64 300
 #define ARCH_PRCTL 384
 
 #endif

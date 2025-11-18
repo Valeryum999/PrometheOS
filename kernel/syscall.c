@@ -130,6 +130,31 @@ uint32_t GetPidHandler(Registers *regs){
     return current_task_PCB->id;
 }
 
+uint32_t GetUidHandler(Registers *regs){
+    printf("GETUID is a stub\n");
+    return 0;
+}
+
+uint32_t GetGidHandler(Registers *regs){
+    printf("GETGID is a stub\n");
+    return 0;
+}
+
+uint32_t GetEUidHandler(Registers *regs){
+    printf("GETEUID is a stub\n");
+    return 0;
+}
+
+uint32_t GetEGidHandler(Registers *regs){
+    printf("GETEGID is a stub\n");
+    return 0;
+}
+
+uint32_t GetPGidHandler(Registers *regs){
+    //GetPGidHandler stubbed for now
+    return 0;
+}
+
 uint32_t KillHandler(Registers *regs){
     printf("Kill handler, for now stubbed\n");
     return 0;
@@ -146,9 +171,18 @@ uint32_t StatHandler(Registers *regs){
     return 0;
 }
 
-uint32_t FStatHandler(Registers *regs){
-    printf("FStat handler, for now stubbed\n");
-    return 0;
+uint32_t FStatAt64Handler(Registers *regs){
+    uint32_t     dfd     = regs->ebx;
+    const char*  path    = (const char*)regs->ecx;
+    struct stat* statbuf = (struct stat*)regs->edx;
+    int          flags   = (int)regs->esi;
+
+    FAT_File *fd = FAT_Open(disk, path);
+
+    if(fd == NULL)
+        return -1;
+
+    return FAT_StatAt(disk, path, flags, statbuf);
 }
 
 uint32_t MMAPHandler(Registers *regs){
@@ -180,6 +214,44 @@ uint32_t ArchPRCTLHandler(Registers *regs){
     return change_gs_base(regs->ebx);
 }
 
+uint32_t UnameHandler(Registers *regs){
+    struct utsname* info = (struct utsname*)regs->ebx;
+    strcpy(info->sysname, "prometheos");
+    strcpy(info->nodename, "user");
+    strcpy(info->release, "0.0.1");
+    strcpy(info->version, "0.0.1");
+    strcpy(info->machine, "");
+    strcpy(info->domainname, "");
+    return 0;
+}
+
+uint32_t IOCTLHandler(Registers *regs){
+    uint32_t fd = regs->ebx;
+    uint32_t cmd = regs->ecx;
+    uint32_t arg = regs->edx;
+    switch(cmd){
+        case TCGETS:
+            break;
+        case TIOCGWINSZ:
+            struct winsize *window = (struct winsize*)regs->edx;
+            window->ws_row = 25;
+            window->ws_col = 80;
+            window->ws_xpixel = 1;
+            window->ws_ypixel = 1;
+            return 0;
+    }
+    printf("IOCTL fd: %d cmd: 0x%x arg: 0x%x is a stub\n", fd, cmd, arg);
+    return 0;
+}
+
+uint32_t FCNTLHandler(Registers *regs){
+    uint32_t fd = regs->ebx;
+    uint32_t cmd = regs->ecx;
+    uint32_t arg = regs->edx;
+    printf("FCNTL is a stub, fd: %d cmd: %x arg: %x\n", fd, cmd, arg);
+    return 0;
+}
+
 uint32_t GenericSyscall(Registers *regs){
     printf("Unhandled syscall: %d\n", regs->eax);
     return 0;
@@ -187,7 +259,11 @@ uint32_t GenericSyscall(Registers *regs){
 
 uint32_t SyscallHandler(Registers *regs){
     if(regs->eax < 92 && regs->eax != 0){
-        printf("Syscall: %s\n", syscall_strings[regs->eax]);
+        if(*syscall_strings[regs->eax]){
+            printf("Syscall: %s\n", syscall_strings[regs->eax]);
+        } else {
+            printf("Undefined syscall: %d\n", regs->eax);
+        }
     }
     switch(regs->eax){
         case 0:
@@ -206,6 +282,10 @@ uint32_t SyscallHandler(Registers *regs){
             return OpenAtHandler(regs);
         case CLOSE:
             return CloseHandler(regs);
+        case IOCTL:
+            return IOCTLHandler(regs);
+        case FCNTL:
+            return FCNTLHandler(regs);
         case WAIT_PID:
             return WaitPidHandler(regs);
         case LINK:
@@ -216,8 +296,16 @@ uint32_t SyscallHandler(Registers *regs){
             return ExecveHandler(regs);
         case LSEEK:
             return LSeekHandler(regs);
-        case GET_PID:
+        case GETPID:
             return GetPidHandler(regs);
+        case GETUID:
+            return GetUidHandler(regs);
+        case GETGID:
+            return GetGidHandler(regs);
+        case GETEUID:
+            return GetEUidHandler(regs);
+        case GETEGID:
+            return GetEGidHandler(regs);
         case KILL:
             return KillHandler(regs);
         case TIMES:
@@ -225,14 +313,20 @@ uint32_t SyscallHandler(Registers *regs){
         case STAT:
             printf("Syscall: STAT\n");
             return StatHandler(regs);
-        case FSTAT:
-            printf("Syscall: FSTAT\n");
-            return FStatHandler(regs);
+        case FSTATAT64:
+            printf("Syscall: FSTATAT64\n");
+            return FStatAt64Handler(regs);
         case MMAP:
             return MMAPHandler(regs);
         case MPROTECT:
             printf("Syscall: MPROTECT\n");
             return MProtectHandler(regs);
+        case UNAME:
+            printf("Syscall: UNAME\n");
+            return UnameHandler(regs);
+        case GETPGID:
+            printf("Syscall: GETPGID\n");
+            return GetPGidHandler(regs);
         case ARCH_PRCTL:
             printf("Syscall: ARCH_PRCTL\n");
             return ArchPRCTLHandler(regs);

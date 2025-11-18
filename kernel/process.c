@@ -46,7 +46,7 @@ int load_process_ELF(task_struct *process, void *buf, void *page_directory){
         return -1;
     }
 
-    if(ELF_parseFile(dynamicLoader, buf+0x1000)){
+    if(ELF_parseFile(dynamicLoader, buf+0x2e6000)){
         return -1;
     }
     if(ELF_load(dynamicLoader)){

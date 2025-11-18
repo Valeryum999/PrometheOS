@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <fs/disk.h>
+#include <kernel/stat.h>
 
 #define SECTOR_SIZE         0x200
 #define ROOT_DIRECTORY_HANDLE -1
@@ -101,6 +102,7 @@ void FAT_Initialize(DISK *disk);
 void FAT_printBootSector();
 FAT_File *FAT_OpenEntry(DISK *disk, FAT_DirectoryEntry *entry);
 FAT_File *FAT_Open(DISK *disk, const char *path);
+int FAT_StatAt(DISK *disk, const char* path, int flags, struct stat* statbuf);
 void FAT_filename_to_FATfilename(const char *name, char *fatName);
 int FAT_findFile(DISK *disk, FAT_File *file, const char *name, FAT_DirectoryEntry *entryOut);
 int FAT_Read(DISK *disk, FAT_File *file, uint32_t byteCount, void *buf);

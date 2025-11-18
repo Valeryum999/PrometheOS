@@ -9,6 +9,7 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
+#include <fs/fat.h>
 #include <kernel/pager.h>
 
 typedef struct {

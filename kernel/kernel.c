@@ -21,7 +21,7 @@ extern uint32_t end_lowtext;
 extern uint32_t end_kernel;
 extern void kpanic();
 
-DISK *disk = (DISK *)0xc050c000;
+DISK *disk = (DISK *)0xc07e8000;
 
 void timer(Registers *regs){
 	
@@ -38,7 +38,6 @@ void kernel_main(void) {
 	init_keyboard();
 	printf("Hello World!\n");
 	printf("End kernel is @ %x\n", &end_kernel);
-	printf("ELF test is @ 0xc0431000\n");
 	printf("physaddr disk: %x ... %x\n", get_physaddr((void *)disk), get_physaddr((void *)disk + 0x3bb9a0));
 	FAT_Initialize(disk);
 	FAT_printBootSector();
@@ -59,7 +58,7 @@ void kernel_main(void) {
 	// for(int i=0; i<0x1000; i++){
 	// 	printf("%x",buf[i]);
 	// }
-	uint32_t test = 0xc0432000;
+	uint32_t test = 0xc0433000;
 	task_struct *processTestMlibc = mmap((void *)0xd0000000, 0x1000, PROT_READ | PROT_WRITE, MAP_ANONYMOUS, -1, 0);
 	load_process(processTestMlibc, (void *)test);
 	task_struct idle_task;

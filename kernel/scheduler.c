@@ -68,7 +68,7 @@ void __attribute__((naked)) task_entry(){
         
         // "mov current_task_PCB, %ebx  \n\t" //eip
         // "mov 16(%ebx), %eax \n\t" // load eip (first field) into eax
-        "add $0xa20325, %eax \n\t" //PH_INTERP entry point
+        "add $0xa1de05, %eax \n\t" //PH_INTERP entry point
         "push %eax         \n\t" //jmp to entry point
         "xor %ebx, %ebx   \n\t"
         "xor %eax, %eax   \n\t"
