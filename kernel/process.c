@@ -75,7 +75,6 @@ int load_process_ELF(task_struct *process, DISK *disk, const char* path, void *p
     FAT_Close(disk, fd);
 
     process->eip = (void *)process->ELFfile->header->ProgramEntryPosition;
-    process->openedFiles = 0;
     return 0;
 }
 
@@ -91,7 +90,31 @@ int load_process(task_struct *process, DISK *disk, const char* path){
     void *process_pd = map_page_directory_kernel();
     write_cr3((uint32_t)process_pd);
 
+    FAT_File *stdin = FAT_Open(disk, "/dev/fd/0");
+    if(stdin == NULL){
+        printf("Couldn't open /dev/fd/0\n");
+        return -1;
+    }
+
+    FAT_File *stdout = FAT_Open(disk, "/dev/fd/1");
+    if(stdout == NULL){
+        printf("Couldn't open /dev/fd/1\n");
+        return -1;
+    }
+
+    FAT_File *stderr = FAT_Open(disk, "/dev/fd/2");
+    if(stderr == NULL){
+        printf("Couldn't open /dev/fd/2\n");
+        return -1;
+    }
+
+    process->fd[0] = stdin;
+    process->fd[1] = stdout;
+    process->fd[2] = stderr;
+    process->openedFiles = 3;
+
     if(load_process_ELF(process, disk, path, process_pd) != 0){
+        printf("Failed to load ELF file!\n");
         return -1;
     }
 

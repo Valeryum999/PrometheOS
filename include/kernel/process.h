@@ -19,7 +19,7 @@ typedef struct task_struct{
     uint8_t state;
 	ELF32_File *ELFfile;
     uint8_t openedFiles;
-    FAT_File *fd[5];
+    FAT_File *fd[10];
 } task_struct;
 
 int load_process(task_struct *process, DISK *disk, const char* path);

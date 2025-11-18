@@ -207,10 +207,12 @@ FAT_File *FAT_Open(DISK *disk, const char *path) {
         if(FAT_findFile(disk, current, name, &entry)){
             FAT_Close(disk, current);
 
-            if(!isLast && (entry.Attributes & FAT_ATTRIBUTE_DIRECTORY) == 0){
-                printf("FAT: Trying to open a directory %s\n", name);
-                return NULL;
-            }
+
+            // you can open a directory dummy
+            // if(!isLast && (entry.Attributes & FAT_ATTRIBUTE_DIRECTORY) == 0){
+            //     printf("FAT: Trying to open a directory %s\n", name);
+            //     return NULL;
+            // }
 
             current = FAT_OpenEntry(disk, &entry);
 
@@ -277,30 +279,19 @@ int FAT_Read(DISK *disk, FAT_File *file, uint32_t byteCount, void *buf) {
                     break; 
                 }
             } else {
-                if(++fd->CurrentSectorInCluster >= g_Data->BootSector.SectorsPerCluster){
-                    fd->CurrentSectorInCluster = 0;
-                    fd->CurrentCluster = FAT_NextCluster(fd->CurrentCluster);
+                FAT_NextSector(disk, fd);
     
-                    if(fd->CurrentCluster >= 0xFF8){
-                        fd->Public.Size = fd->Public.Position;
-                        break;
-                    }
-    
-                    if(!FAT_readSectors(disk, 
-                                        FAT_ClusterToLba(fd->CurrentCluster) + fd->CurrentSectorInCluster, 
-                                        1, 
-                                        fd->Buffer)){
-                        printf("FAT: cannot read next cluster\n");
-                        break; 
-                    }
-                } else {
-                    if(!FAT_readSectors(disk, 
-                                        FAT_ClusterToLba(fd->CurrentCluster) + fd->CurrentSectorInCluster, 
-                                        1, 
-                                        fd->Buffer)){
-                        printf("FAT: cannot read next sector\n");
-                        break; 
-                    }
+                if(fd->CurrentCluster >= 0xFF8){
+                    fd->Public.Size = fd->Public.Position;
+                    break;
+                }
+
+                if(!FAT_readSectors(disk, 
+                    FAT_ClusterToLba(fd->CurrentCluster) + fd->CurrentSectorInCluster, 
+                    1, 
+                    fd->Buffer)){
+                    printf("FAT: cannot read next sector\n");
+                    break; 
                 }
             }
         }
@@ -322,15 +313,33 @@ int FAT_Write(DISK *disk, FAT_File *file, uint32_t len, void *buf){
         memcpy(fd->Buffer + fd->Public.Position % SECTOR_SIZE, u8Buf, put);
         fd->Public.Position = (fd->Public.Position + len) % SECTOR_SIZE;
         len -= put;
+        u8Buf += put;
+        // still have to implement next cluster allocation
+        // if(put == leftInBuffer){
+            
+        // }
     }
 
-    FAT_writeSectors(disk, FAT_ClusterToLba(fd->CurrentCluster), 1, fd->Buffer);
+    FAT_writeSectors(disk, FAT_ClusterToLba(fd->CurrentCluster) + fd->CurrentSectorInCluster, 1, fd->Buffer);
 
     return u8Buf - (uint8_t *)buf;
 }
 
+void FAT_NextSector(DISK *disk, FAT_FileData *fd){
+    if(++fd->CurrentSectorInCluster >= g_Data->BootSector.SectorsPerCluster){
+        fd->CurrentSectorInCluster = 0;
+        fd->CurrentCluster = FAT_NextCluster(fd->CurrentCluster);
+    }
+}
+
 int FAT_LSeek(DISK *disk, FAT_File *file, uint32_t offset, uint32_t whence){
+    if(file->Handle < 0 || file->Handle > MAX_FILE_HANDLES){
+        printf("Something really bad happened, file handle OOB!\n");
+        return -1;
+    }
+
     FAT_FileData *fd = &g_Data->OpenedFiles[file->Handle];
+
     uint32_t current_cluster = fd->CurrentCluster;
     uint32_t return_offset = offset;
     switch(whence){
@@ -347,8 +356,24 @@ int FAT_LSeek(DISK *disk, FAT_File *file, uint32_t offset, uint32_t whence){
             fd->Public.Position = offset;
             break;
         case SEEK_CUR:
+            while(offset >= SECTOR_SIZE){
+                FAT_NextSector(disk, fd);
+                offset -= SECTOR_SIZE;
+            }
+
+            // offset is less than SECTOR_SIZE 
+            // but still makes us go to the next sector
+            if((fd->Public.Position + offset) >= SECTOR_SIZE){
+                FAT_NextSector(disk, fd);
+                offset -= (SECTOR_SIZE - fd->Public.Position);
+                fd->Public.Position = 0;
+            }
+
+            fd->Public.Position += offset;
+
+            break;
         case SEEK_END:
-            printf("FAT: seek cur and seek end unimplemented yet");
+            printf("FAT: seek end unimplemented yet\n");
             return -1;
         default:
             printf("FAT: unrecognized whence: %d", whence);

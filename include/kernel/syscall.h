@@ -7,6 +7,7 @@
 #include <kernel/gdt.h>
 #include <kernel/scheduler.h>
 #include <kernel/page_frame_allocator.h>
+#include <kernel/tty.h>
 
 //b *0xc00061b5
 

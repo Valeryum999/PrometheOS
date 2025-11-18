@@ -3,6 +3,11 @@
 extern void kpanic();
 extern DISK *disk;
 extern task_struct *current_task_PCB;
+int verbose = 0;
+
+#define STDIN 0
+#define STDOUT 1
+#define STDERR 2
 
 uint32_t MLibcLog(Registers *regs){
     printf("%s\n", regs->ebx);
@@ -29,11 +34,6 @@ uint32_t ForkHandler(Registers *regs){
 
 uint32_t ReadHandler(Registers *regs){
     uint32_t fd = regs->ebx;
-    if(fd < 3){
-        // read from stdin, stout or stderr
-        return 0;
-    }
-    fd -= 3;
     char *buf = (char *)regs->ecx;
     size_t len = regs->edx;
     return FAT_Read(disk, current_task_PCB->fd[fd], len, buf);
@@ -41,14 +41,12 @@ uint32_t ReadHandler(Registers *regs){
 
 uint32_t WriteHandler(Registers *regs){
     uint32_t fd = regs->ebx;
-    if(fd < 3){
-        // write to stdin, stout or stderr
-        printf("%s",regs->ecx);
-        return regs->edx;
-    }
-    fd -= 3;
     const char *buf = (const char *)regs->ecx;
     size_t len = regs->edx;
+    //little workaround for the moment
+    //TODO replace this with actual synchronization between /dev/fd/1 and tty
+    if(fd == STDOUT || fd == STDERR)
+        printf("%s", buf);
     return FAT_Write(disk, current_task_PCB->fd[fd], len, buf);
 }
 
@@ -61,22 +59,18 @@ uint32_t OpenHandler(Registers *regs){
 uint32_t OpenAtHandler(Registers *regs){
     int dfd = (int)regs->ebx;
     const char *path = (const char *)regs->ecx;
-    printf("path: %s\n",path);
+    printf("OPENAT: path is %s\n",path);
     FAT_File *result = FAT_Open(disk, path);
     if(result == NULL){
         return -1;
     }
     current_task_PCB->fd[current_task_PCB->openedFiles] = result;
-    return current_task_PCB->openedFiles++ + 3; //to reserve 0,1,2 for stdin, stdout, stderr
+    return current_task_PCB->openedFiles++; //to reserve 0,1,2 for stdin, stdout, stderr
 }
 
 uint32_t CloseHandler(Registers *regs){
     uint32_t fd = regs->ebx;
-    if(fd < 3){
-        // can't close stdin stdout stderr?
-        return -1;
-    }
-    fd -= 3;
+    printf("CLOSE: closing %d\n", fd);
     FAT_Close(disk, current_task_PCB->fd[fd]);
     //what to do with dangling fd?
     //current_task_PCB->fd[fd] = NULL;
@@ -106,19 +100,13 @@ uint32_t ExecveHandler(Registers *regs){
     const char **argv = (const char **)regs->ecx;
     const char **envp = (const char **)regs->edx;
     printf("Execve handler, for now stubbed\n");
-    // should be the content of the ELF_File obtained by searching the filename
-    // task_struct new_process = load_process(NULL, NULL); 
-    // asm volatile("jmp %0" :: "r"(new_process.eip));
-    return 0; // should not return
+    return 0;
 }
 
 uint32_t LSeekHandler(Registers *regs){
     uint32_t fd = regs->ebx;
-    if(fd < 3){
-        return -1; //still don't know how to handle stdin, stdout and stderr
-    }
-    fd -= 3;
     if(current_task_PCB->fd[fd] == NULL){
+        printf("LSEEK: fd points to a non-existent file!\n");
         return -1;
     }
     uint32_t offset = regs->ecx;
@@ -192,13 +180,15 @@ uint32_t MMAPHandler(Registers *regs){
     int flags = (int)regs->esi;
     int fd = (int)regs->edi;
     uint32_t offset = regs->ebp;
-    printf("mmap @ %x + %x with prot %x flags %x fd %x offset %x\n",
-            virtual_addr,
-            size,
-            prot,
-            flags,
-            fd,
-            offset);
+    if(verbose){
+        printf("mmap @ %x + %x with prot %x flags %x fd %x offset %x\n",
+                virtual_addr,
+                size,
+                prot,
+                flags,
+                fd,
+                offset);
+    }
     return (uint32_t)mmap(virtual_addr, size, prot, flags, fd, offset);
 }
 
@@ -229,6 +219,7 @@ uint32_t IOCTLHandler(Registers *regs){
     uint32_t fd = regs->ebx;
     uint32_t cmd = regs->ecx;
     uint32_t arg = regs->edx;
+    printf("IOCTL %s fd: %d cmd: 0x%x arg: 0x%x is a stub\n", ioctl_cmds[cmd-TCGETS], fd, cmd, arg);
     switch(cmd){
         case TCGETS:
             break;
@@ -240,7 +231,6 @@ uint32_t IOCTLHandler(Registers *regs){
             window->ws_ypixel = 1;
             return 0;
     }
-    printf("IOCTL %s fd: %d cmd: 0x%x arg: 0x%x is a stub\n", ioctl_cmds[cmd-TCGETS], fd, cmd, arg);
     return 0;
 }
 
@@ -279,6 +269,7 @@ uint32_t SyscallHandler(Registers *regs){
         case OPEN:
             return OpenHandler(regs);
         case OPENAT:
+            printf("Syscall: OPENAT\n");
             return OpenAtHandler(regs);
         case CLOSE:
             return CloseHandler(regs);
