@@ -39,8 +39,6 @@ $(DESTDIR)/prometheos.iso: $(DESTDIR)/prometheos.kernel
 	mkdir -p $(DESTDIR)/iso/boot/grub
 	cp $(DESTDIR)/prometheos.kernel $(DESTDIR)/iso/boot/
 	cp ../fat12.img $(DESTDIR)/iso/boot/prometheos.initrd
-	cp bash $(DESTDIR)/iso/boot/bash
-	cp ld.so $(DESTDIR)/iso/boot/ld.so
 	cp grub.cfg $(DESTDIR)/iso/boot/grub/grub.cfg
 
 	$(GRUB)-mkrescue -o $(DESTDIR)/prometheos.iso $(DESTDIR)/iso

@@ -240,7 +240,7 @@ uint32_t IOCTLHandler(Registers *regs){
             window->ws_ypixel = 1;
             return 0;
     }
-    printf("IOCTL fd: %d cmd: 0x%x arg: 0x%x is a stub\n", fd, cmd, arg);
+    printf("IOCTL %s fd: %d cmd: 0x%x arg: 0x%x is a stub\n", ioctl_cmds[cmd-TCGETS], fd, cmd, arg);
     return 0;
 }
 

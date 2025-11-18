@@ -29,13 +29,31 @@ void write_cr3(uint32_t pd){
     __asm__ volatile("mov %0, %%cr3" :: "r"(pd));
 }
 
-int load_process_ELF(task_struct *process, void *buf, void *page_directory){
+int load_process_ELF(task_struct *process, DISK *disk, const char* path, void *page_directory){
     process->cr3 = (void *)page_directory; 
     process->ELFfile = mmap(NULL, 0x1000, PROT_READ | PROT_WRITE, MAP_ANONYMOUS, -1, 0);
-    if(ELF_parseFile(process->ELFfile, buf)){
+    
+    FAT_File *fd = FAT_Open(disk, path);
+
+    if(fd == NULL){
+        printf("File %s not found!\n", path);
         return -1;
     }
-    if(ELF_load(process->ELFfile)){
+
+    if(ELF_parseFile(disk, fd, process->ELFfile)){
+        return -1;
+    }
+    
+    if(ELF_load(disk, fd, process->ELFfile)){
+        return -1;
+    }
+
+    FAT_Close(disk, fd);
+
+    fd = FAT_Open(disk, "/usr/lib/ld.so");
+
+    if(fd == NULL){
+        printf("Could not find or open PH_INTERP!\n");
         return -1;
     }
 
@@ -46,14 +64,17 @@ int load_process_ELF(task_struct *process, void *buf, void *page_directory){
         return -1;
     }
 
-    if(ELF_parseFile(dynamicLoader, buf+0x2e6000)){
+    if(ELF_parseFile(disk, fd, dynamicLoader)){
         return -1;
     }
-    if(ELF_load(dynamicLoader)){
+
+    if(ELF_load(disk, fd, dynamicLoader)){
         return -1;
     }
     
-    process->eip = (void *)process->ELFfile->header->ProgramEntryPosition;//(void *)dynamicLoader.header->ProgramEntryPosition;
+    FAT_Close(disk, fd);
+
+    process->eip = (void *)process->ELFfile->header->ProgramEntryPosition;
     process->openedFiles = 0;
     return 0;
 }
@@ -66,11 +87,11 @@ void map_stack(task_struct *process){
     *buffer = (uint32_t)task_entry;
 }
 
-int load_process(task_struct *process, void *buf){
+int load_process(task_struct *process, DISK *disk, const char* path){
     void *process_pd = map_page_directory_kernel();
     write_cr3((uint32_t)process_pd);
 
-    if(load_process_ELF(process, buf, process_pd) != 0){
+    if(load_process_ELF(process, disk, path, process_pd) != 0){
         return -1;
     }
 

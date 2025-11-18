@@ -6,6 +6,9 @@ Elf32_auxv_t phdr;
 Elf32_auxv_t ph_entsize;
 Elf32_auxv_t ph_entcount;
 Elf32_auxv_t eip;
+uint32_t entryPosition = 0;
+
+extern ELF32_File *dynamicLoader;
 
 const char *env = "LD_SHOW_AUXV=1";
 
@@ -42,6 +45,7 @@ void __attribute__((naked)) task_entry(){
     ph_entcount.a_un.a_val = current_task_PCB->ELFfile->header->ProgramHeaderTableEntryCount;
     eip.a_type = AT_ENTRY;
     eip.a_un.a_val = (uint32_t)current_task_PCB->eip;
+    entryPosition = 0xa00000 + dynamicLoader->header->ProgramEntryPosition; //to fix base addr
     asm volatile(
         "xor %eax, %eax   \n\t"
         "push %eax         \n\t" 
@@ -68,7 +72,7 @@ void __attribute__((naked)) task_entry(){
         
         // "mov current_task_PCB, %ebx  \n\t" //eip
         // "mov 16(%ebx), %eax \n\t" // load eip (first field) into eax
-        "add $0xa1de05, %eax \n\t" //PH_INTERP entry point
+        "mov entryPosition, %eax \n\t" //PH_INTERP entry point
         "push %eax         \n\t" //jmp to entry point
         "xor %ebx, %ebx   \n\t"
         "xor %eax, %eax   \n\t"

@@ -291,7 +291,7 @@ typedef struct {
     uint8_t rear;
 } queue_t;
 
-int ELF_parseFile(ELF32_File *file, void* buf);
-int ELF_load(ELF32_File *file);
+int ELF_parseFile(DISK *disk, FAT_File *fd, ELF32_File *file);
+int ELF_load(DISK *disk, FAT_File *fd, ELF32_File *file);
 
 #endif

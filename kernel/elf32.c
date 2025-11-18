@@ -309,14 +309,9 @@ void ELF_printMapping(void *addr, uint32_t size, uint32_t flags, uint32_t offset
 //     return 0;
 // }
 
-int ELF_ParseFile(DISK *disk, const char* path, ELF32_File *file) {
-    FAT_File *fd = FAT_Open(disk, path);
-
-    if(fd == NULL){
-        printf("File %s not found!\n", path);
-        return -1;
-    }
-
+int ELF_parseFile(DISK *disk, FAT_File *fd, ELF32_File *file) {
+    file->header = (ELFHeader *)(file + 1);
+    FAT_LSeek(disk, fd, 0, SEEK_SET);
     FAT_Read(disk, fd, sizeof(ELFHeader), file->header);
     if(file->header->Magic != ELF_MAGIC){
         printf("Error in parsing ELF file!");
@@ -324,13 +319,15 @@ int ELF_ParseFile(DISK *disk, const char* path, ELF32_File *file) {
         return -1;
     }
 
+    file->programHeaders = (ELF32ProgramHeader *)(file->header + 1);
     uint32_t phdr_size = file->header->ProgramHeaderTableEntryCount * file->header->ProgramHeaderTableEntrySize;
     FAT_LSeek(disk, fd, file->header->ProgramHeaderTablePosition, SEEK_SET);
     FAT_Read(disk, fd, phdr_size, file->programHeaders);
 
+    file->sectionHeaders = (ELF32SectionHeader *)(file->programHeaders + file->header->ProgramHeaderTableEntryCount);
     uint32_t shdr_size = file->header->SectionHeaderTableEntryCount * file->header->SectionHeaderTableEntrySize;
     FAT_LSeek(disk, fd, file->header->SectionHeaderTablePosition, SEEK_SET);
-    FAT_Read(disk, fd, phdr_size, file->sectionHeaders);
+    FAT_Read(disk, fd, shdr_size, file->sectionHeaders);
 
     ELF32SectionHeader *symTable = findSectionHeader(file, SHT_SYMTAB);
     if(symTable == NULL){
@@ -346,63 +343,36 @@ int ELF_ParseFile(DISK *disk, const char* path, ELF32_File *file) {
     }
     file->strTable = strTable->sh_offset;
 
-    FAT_Close(disk, file);
     return 0;
 }
 
-int ELF_parseFile(ELF32_File *file, void* baseAddr) {
-    file->header = baseAddr;
-    if(file->header->Magic != ELF_MAGIC){
-        printf("Error in parsing ELF file @ %x\n", baseAddr);
-        printf("file header magic bytes: %x\n", file->header->Magic);
-        return -1;
-    }
-    file->programHeaders = baseAddr + file->header->ProgramHeaderTablePosition;
-    file->sectionHeaders = baseAddr + file->header->SectionHeaderTablePosition;
-    // for(int i=0; i<file->header->SectionHeaderTableEntryCount; i++){
-    //     ELF_printSectionHeader(&file->sectionHeaders[i]);
-    // }
-    ELF32SectionHeader *symTable = findSectionHeader(file, SHT_SYMTAB);
-    if(symTable == NULL){
-        printf("ERROR! couldn't find symbol table!\n");
-        return -1;
-    }
-    file->symTable = (uint32_t)baseAddr + symTable->sh_offset;
-    ELF32SectionHeader *strTable = findSectionHeader(file, SHT_STRTAB);
-    if(strTable == NULL) {
-        printf("ERROR! couldn't find string table!\n");
-        return -1;
-    }
-    file->strTable = (uint32_t)baseAddr + strTable->sh_offset;
-    return 0;
-}
-
-int ELF_load(ELF32_File *file){
+int ELF_load(DISK *disk, FAT_File *fd, ELF32_File *file){
     uint32_t baseAddr;
     if(file->header->Type == ELF_TYPE_EXECUTABLE)
         baseAddr = 0x0;
     else
         baseAddr = 0xa00000;
+
     for(int i=0; i<file->header->ProgramHeaderTableEntryCount; i++){
         if(file->programHeaders[i].Type == ELF_PROGRAM_TYPE_LOAD){
             void *addr = (void *)(baseAddr + file->programHeaders[i].VirtualAddress);
             void *page = (void *)align_page((size_t)addr);
-            uint32_t offset = (uint32_t)(file->header) + file->programHeaders[i].Offset;
+            uint32_t offset = file->programHeaders[i].Offset;
             ELF_printMapping(addr,
                             file->programHeaders[i].MemorySize,
                             file->programHeaders[i].Flags,
                             offset,
                             page);
 
-            printf("Copying from %x + %x for %x bytes\n", baseAddr, file->programHeaders[i].Offset, file->programHeaders[i].FileSize);
             void *result = mmap(page, file->programHeaders[i].MemorySize, PAGE_WRITABLE | PAGE_USER, MAP_ANONYMOUS, -1, 0);
             if(result == NULL){
                 printf("Failed to mmap page %x!\n",page);
                 return -1;
             }
-            memcpy(addr, (void *)offset, file->programHeaders[i].FileSize);
+            printf("Copying from %x + %x for %x bytes\n", baseAddr, file->programHeaders[i].Offset, file->programHeaders[i].FileSize);
+            FAT_LSeek(disk, fd, offset, SEEK_SET);
+            FAT_Read(disk, fd, file->programHeaders[i].FileSize, addr);
             if(file->programHeaders[i].MemorySize > file->programHeaders[i].FileSize){
-                // have to zero out data
                 printf("Zeroing out data from %x to %x\n",
                         file->programHeaders[i].FileSize,
                         file->programHeaders[i].MemorySize);

@@ -22,7 +22,6 @@ typedef struct task_struct{
     FAT_File *fd[5];
 } task_struct;
 
-int load_process(task_struct *process, void *buf);
-void start_process(task_struct process);
+int load_process(task_struct *process, DISK *disk, const char* path);
 
 #endif

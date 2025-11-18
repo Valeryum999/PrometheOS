@@ -21,24 +21,43 @@ extern uint32_t end_lowtext;
 extern uint32_t end_kernel;
 extern void kpanic();
 
-DISK *disk = (DISK *)0xc07e8000;
+#define DISK_HEADER 0x6d903ceb
+
+DISK *disk;
 
 void timer(Registers *regs){
 	
 }
 
 void kernel_main(void) {
+	terminal_initialize();
 	init_GDT();
 	init_IDT();
 	init_ISR();
 	i686_IRQ_Initialize();
 	i686_IRQ_RegisterHandler(0, timer);
 	init_stack();
-	terminal_initialize();
 	init_keyboard();
 	printf("Hello World!\n");
 	printf("End kernel is @ %x\n", &end_kernel);
-	printf("physaddr disk: %x ... %x\n", get_physaddr((void *)disk), get_physaddr((void *)disk + 0x3bb9a0));
+	uint32_t end_kernel_uint = (uint32_t)&end_kernel;
+	end_kernel_uint &= ~0xfff;
+	end_kernel_uint += PAGE_SIZE;
+	uint32_t *guess_disk_pos = (uint32_t*)end_kernel_uint;
+	int count = 0;
+	printf("Searching initrd from 0x%x\n", guess_disk_pos);
+	while(*guess_disk_pos != DISK_HEADER && count < 100){
+		guess_disk_pos += 0x400; // to add a pagesize
+		count++;
+	}
+	if(count == 100){
+		printf("COuldn't find disk!\n");
+		kpanic();
+	}
+
+	printf("Found disk at 0x%x!\n", guess_disk_pos);
+	disk = (DISK *) guess_disk_pos;
+	
 	FAT_Initialize(disk);
 	FAT_printBootSector();
 	//everything mapped at the same addr wtf
@@ -58,9 +77,8 @@ void kernel_main(void) {
 	// for(int i=0; i<0x1000; i++){
 	// 	printf("%x",buf[i]);
 	// }
-	uint32_t test = 0xc0433000;
 	task_struct *processTestMlibc = mmap((void *)0xd0000000, 0x1000, PROT_READ | PROT_WRITE, MAP_ANONYMOUS, -1, 0);
-	load_process(processTestMlibc, (void *)test);
+	load_process(processTestMlibc, disk, "/usr/bin/bash");
 	task_struct idle_task;
 	initialize_multiprocessing(&idle_task);
 	add_process_to_schedule(processTestMlibc);
