@@ -27,8 +27,6 @@ void schedule(Registers *regs){
 void add_process_to_schedule(task_struct *next_task){
     next_task->next = current_task_PCB->next;
     current_task_PCB->next = next_task;
-    printf("CR3: %x\n",next_task->cr3);
-    printf("Added task ELF: %x\n", next_task->ELFfile);
 }
 
 //PH table pointer
@@ -45,7 +43,8 @@ void __attribute__((naked)) task_entry(){
     ph_entcount.a_un.a_val = current_task_PCB->ELFfile->header->ProgramHeaderTableEntryCount;
     eip.a_type = AT_ENTRY;
     eip.a_un.a_val = (uint32_t)current_task_PCB->eip;
-    entryPosition = 0xa00000 + dynamicLoader->header->ProgramEntryPosition; //to fix base addr
+    entryPosition = 0xa00000 + 0x1dee9; //to fix base addr
+    printf("Jumping in ld.so!\n");
     asm volatile(
         "xor %eax, %eax   \n\t"
         "push %eax         \n\t" 

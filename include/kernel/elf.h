@@ -291,7 +291,42 @@ typedef struct {
     uint8_t rear;
 } queue_t;
 
+typedef struct memory_mappings{
+    uint32_t start_addr;
+    uint32_t end_addr;
+    size_t size;
+    size_t offset;
+    int flags;
+    char path[20];
+} memory_mappings;
+
+typedef struct task_struct{
+	void *esp;
+    void *esp0;
+    void *cr3;
+    struct task_struct *next;
+    void *eip;
+    int id;
+    uint8_t state;
+	ELF32_File *ELFfile;
+    uint8_t openedFiles;
+    FAT_File *fd[10];
+    memory_mappings vmmap[20];
+    uint8_t number_of_mappings;
+
+} task_struct;
+
 int ELF_parseFile(DISK *disk, FAT_File *fd, ELF32_File *file);
-int ELF_load(DISK *disk, FAT_File *fd, ELF32_File *file);
+int ELF_load(DISK *disk, FAT_File *fd, ELF32_File *file, task_struct *process);
+int ELF_to_MMAP_perm(int elfPerm);
+void ELF_printPermissions(int permissions);
+
+void print_memory_mappings(task_struct *process);
+void add_memory_mapping(task_struct *process, 
+                        uint32_t start_addr, 
+                        int flags, 
+                        size_t size, 
+                        size_t offset, 
+                        const char *path);
 
 #endif

@@ -25,7 +25,6 @@ isr_common:
     mov %ax, %ds
     mov %ax, %es
     mov %ax, %fs
-    #mov %ax, %gs
 
     push %esp
     call ISR_Handler
@@ -35,7 +34,6 @@ isr_common:
     mov %ax, %ds
     mov %ax, %es
     mov %ax, %fs
-    #mov %ax, %gs
 
     popal
     add $8, %esp

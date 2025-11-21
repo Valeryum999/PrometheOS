@@ -123,6 +123,7 @@ void terminal_move_cursor_right(){
 
 void terminal_putchar(char c) {
 	unsigned char uc = c;
+	i686_outb(0xe9, uc);
 	if(uc == '\n'){
         terminal_column = 0;
         if(++terminal_row == VGA_HEIGHT){

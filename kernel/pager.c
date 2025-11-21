@@ -6,7 +6,7 @@ uint32_t page_tables[1024][1024] __attribute__((aligned(4096), section(".lowdata
 //terrible workaround, to fix dynamically (maybe mmap the page tables at [endkernel-KERNEL_BASE:endkernel-KERNEL_BASE+0x400000])
 // uint32_t second_kernel_page_table[1024] __attribute__((aligned(4096), section(".lowdata")));
 uint32_t *virtual_page_directory = (uint32_t *) 0xfffff000;
-uint32_t random_alloc = 0x10000000;
+uint32_t random_alloc = 0xb000000;
 
 extern uint32_t end_lowtext;
 extern uint32_t end_kernel;
@@ -78,11 +78,10 @@ void *mmap(void *virtualaddr, size_t size, int prot, int flags, int fd, uint32_t
     size_t numPages = size / PAGE_SIZE + (((size % PAGE_SIZE) > 0) ? 1 : 0);
     int isRandomAlloc = (virtualaddr == NULL) ? 1 : 0;
     for(size_t i=0; i<numPages; i++){
-        void *physaddr = kalloc_page_frame();
         if(isRandomAlloc){
             virtualaddr = (void *)random_alloc;
         }
-    
+        
         uint32_t page_directory_index = (uint32_t)(virtualaddr + PAGE_SIZE * i) >> 22;
         uint32_t page_table_index = (uint32_t)(virtualaddr + PAGE_SIZE * i) >> 12 & 0x3FF;
         uint32_t *page_table = (uint32_t *)(0xffc00000 + page_directory_index*PAGE_SIZE);
@@ -90,15 +89,17 @@ void *mmap(void *virtualaddr, size_t size, int prot, int flags, int fd, uint32_t
         if(!(virtual_page_directory[page_directory_index] & PAGE_PRESENT)){
             malloc_page_table(page_directory_index);
         }
-    
+        
+        void *physaddr = kalloc_page_frame();
         page_table[page_table_index] = ((uint32_t)physaddr) | (prot & 0xFFF) | PAGE_PRESENT;
+
+        //flush TLB
+        asm volatile("invlpg (%0)" ::"r" (virtualaddr+i*PAGE_SIZE) : "memory");
     }
     if(isRandomAlloc)
         random_alloc += numPages * PAGE_SIZE;
 
     return virtualaddr;
-    // Now you need to flush the entry in the TLB
-    // or you might not notice the change.
 }
 
 int mprotect(void *start, size_t size, uint32_t prot){

@@ -91,6 +91,8 @@ static uint32_t FAT_ClusterToLba(uint32_t cluster){
     return g_DataSectionLba + (cluster - 2) * g_Data->BootSector.SectorsPerCluster;
 }
 
+extern void kpanic();
+
 FAT_File *FAT_OpenEntry(DISK *disk, FAT_DirectoryEntry *entry) {
     int handle = -1;
     for(int i = 0; i < MAX_FILE_HANDLES && handle < 0; i++){
@@ -102,6 +104,7 @@ FAT_File *FAT_OpenEntry(DISK *disk, FAT_DirectoryEntry *entry) {
 
     if(handle < 0){
         printf("FAT: out of file handles\n");
+        kpanic();
         return NULL;
     }
 
@@ -161,14 +164,18 @@ void FAT_filename_to_FATfilename(const char *name, char *fatName){
     }
 }
 
+extern int verbose;
+
 int FAT_findFile(DISK *disk, FAT_File *file, const char *name, FAT_DirectoryEntry *entryOut) {
     FAT_DirectoryEntry entry;
     char fatName[12];
     FAT_filename_to_FATfilename(name, fatName);
     fatName[11] = '\0';
-    printf("Transformed fat name: ");
-    printf("%s",fatName);
-    printf("\n");
+    if(verbose){
+        printf("Transformed fat name: ");
+        printf("%s",fatName);
+        printf("\n");
+    }
     while(FAT_ReadEntry(disk, file, &entry) && entry.Name[0] != 0){
         if(memcmp(fatName, entry.Name, 11) == 0){
             *entryOut = entry;
@@ -206,16 +213,7 @@ FAT_File *FAT_Open(DISK *disk, const char *path) {
         FAT_DirectoryEntry entry;
         if(FAT_findFile(disk, current, name, &entry)){
             FAT_Close(disk, current);
-
-
-            // you can open a directory dummy
-            // if(!isLast && (entry.Attributes & FAT_ATTRIBUTE_DIRECTORY) == 0){
-            //     printf("FAT: Trying to open a directory %s\n", name);
-            //     return NULL;
-            // }
-
             current = FAT_OpenEntry(disk, &entry);
-
         } else {
             FAT_Close(disk, current);
             printf("FAT: %s not found\n", name);
@@ -333,6 +331,7 @@ void FAT_NextSector(DISK *disk, FAT_FileData *fd){
 }
 
 int FAT_LSeek(DISK *disk, FAT_File *file, uint32_t offset, uint32_t whence){
+    printf("LSEEK: seeking to offset 0x%x with whence %d\n", offset, whence);
     if(file->Handle < 0 || file->Handle > MAX_FILE_HANDLES){
         printf("Something really bad happened, file handle OOB!\n");
         return -1;
@@ -412,7 +411,6 @@ int FAT_CopyFile(DISK *disk, const char *old_name, const char *new_name){
     // copy dirEntry into tmpBuffer
     uint8_t tmpBuffer[sizeof(FAT_DirectoryEntry)];
     memcpy(tmpBuffer, fd->Buffer + fd->Public.Position, sizeof(FAT_DirectoryEntry));
-    printf("Current fd position: %x\n", fd->Public.Position);
     char fatName[11];
     FAT_filename_to_FATfilename(new_name, fatName);
 

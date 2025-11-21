@@ -3,12 +3,7 @@
 
 extern void kpanic();
 
-typedef struct {
-    uint8_t *arr[MAX_PAGES];
-    int top;
-} stack_t;
-
-static stack_t stack;
+stack_t stack;
 
 static void push(uint8_t *value) {
     if (stack.top == (MAX_PAGES - 1)) {
@@ -16,7 +11,6 @@ static void push(uint8_t *value) {
         return;
     }
     stack.arr[++stack.top] = value;
-    printf("Pushed %x onto the stack\n", value);
 }
 
 static uint8_t *pop() {
@@ -34,6 +28,7 @@ void init_stack(){
     stack.top = -1;
     for(int i=0; i<MAX_PAGES; i++){
         // push((uint8_t *)(0x500000 + i*PAGE_SIZE));
+        // 8533fc0
         stack.arr[MAX_PAGES-1-i] = (uint8_t *)(0x1000000 + i*PAGE_SIZE);
     }
     stack.top = MAX_PAGES - 1;

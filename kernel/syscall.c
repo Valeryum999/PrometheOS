@@ -3,11 +3,25 @@
 extern void kpanic();
 extern DISK *disk;
 extern task_struct *current_task_PCB;
+extern ELF32_File *dynamicLoader;
 int verbose = 0;
 
 #define STDIN 0
 #define STDOUT 1
 #define STDERR 2
+
+void dump_memory(void *addr){
+    uint8_t *dump = (uint8_t *) addr;
+    for(size_t i=0; i<1; i++){
+        for(size_t j=0; j<16; j++){
+            if(dump[i*16+j] < 16){
+                printf("0");
+            }
+            printf("%x",dump[i*16+j]);
+        }
+        printf("\n");
+    }
+}
 
 uint32_t MLibcLog(Registers *regs){
     printf("%s\n", regs->ebx);
@@ -21,15 +35,37 @@ uint32_t ExitHandler(Registers *regs){
         previous_task = previous_task->next;
     }
     previous_task->next = current_task_PCB->next;
+
+    // free all the page frames allocated in this process' address space
+    for(size_t i=0; i<current_task_PCB->number_of_mappings; i++){
+        void *start_addr = get_physaddr((void *)current_task_PCB->vmmap[i].start_addr);
+        size_t page_frames = (current_task_PCB->vmmap[i].end_addr - current_task_PCB->vmmap[i].start_addr) / PAGE_SIZE;
+        free_page_frames(start_addr, page_frames);
+    }
+
+    // free curr executable ELFfile struct
+    free(get_physaddr((void *)current_task_PCB->ELFfile));
+
+    // free curr executable task_struct
+    free(get_physaddr((void *)current_task_PCB));
+
+    // free ld.so ELFfile struct
+    free(get_physaddr((void *)dynamicLoader));
+
+    // free the page directory thanks to recursive paging
+    free(get_physaddr(virtual_page_directory));
+
+    // finally, switch to the next process in queue
     switch_to_task(current_task_PCB->next);
+
+    // does not return
     return 0;
 }
 
 uint32_t ForkHandler(Registers *regs){
-    // task_struct child = load_process(current_task_PCB->ELFfile);
-    // child.eip = (void *)regs->eip;
-    // add_process_to_schedule(&child);
-    return 0;
+    // task_struct *child = mmap((void *)0xe0000000, 0x1000, PROT_READ | PROT_WRITE, MAP_ANONYMOUS, -1, 0);
+    printf("FORK: stubbed\n");
+    return current_task_PCB->id;
 }
 
 uint32_t ReadHandler(Registers *regs){
@@ -65,7 +101,9 @@ uint32_t OpenAtHandler(Registers *regs){
         return -1;
     }
     current_task_PCB->fd[current_task_PCB->openedFiles] = result;
-    return current_task_PCB->openedFiles++; //to reserve 0,1,2 for stdin, stdout, stderr
+    uint32_t fd = current_task_PCB->openedFiles++;
+    printf("OPENAT: returning fd %d\n",fd);
+    return fd; //to reserve 0,1,2 for stdin, stdout, stderr
 }
 
 uint32_t CloseHandler(Registers *regs){
@@ -95,11 +133,31 @@ uint32_t UnlinkHandler(Registers *regs){
     return 0;
 }
 
+int debugIsExecve = 0;
+
 uint32_t ExecveHandler(Registers *regs){
-    const char *filename = (const char *)regs->ebx;
+    const char *path = (const char *)regs->ebx;
     const char **argv = (const char **)regs->ecx;
     const char **envp = (const char **)regs->edx;
-    printf("Execve handler, for now stubbed\n");
+
+    printf("EXECVE: %s with argv: %x and envp: %x\n", path, argv, envp);
+    debugIsExecve = 1;
+
+    // free all the page frames allocated in this process' address space
+    for(size_t i=0; i<current_task_PCB->number_of_mappings; i++){
+        if(!strcmp(current_task_PCB->vmmap[i].path, "stack"))
+            continue;
+        void *start_addr = (void *)current_task_PCB->vmmap[i].start_addr;
+        size_t page_frames = (current_task_PCB->vmmap[i].end_addr - current_task_PCB->vmmap[i].start_addr) / PAGE_SIZE;
+        for(size_t j=0; j<page_frames; j++){
+            free(get_physaddr(start_addr + PAGE_SIZE * j));
+        }
+    }
+    // current_task_PCB->vmmap[0].start_addr = 
+    //should not return
+    change_to_new_executable(current_task_PCB, disk, path);
+
+    //if returns it's an error
     return 0;
 }
 
@@ -180,7 +238,7 @@ uint32_t MMAPHandler(Registers *regs){
     int flags = (int)regs->esi;
     int fd = (int)regs->edi;
     uint32_t offset = regs->ebp;
-    if(verbose){
+   
         printf("mmap @ %x + %x with prot %x flags %x fd %x offset %x\n",
                 virtual_addr,
                 size,
@@ -188,8 +246,9 @@ uint32_t MMAPHandler(Registers *regs){
                 flags,
                 fd,
                 offset);
-    }
-    return (uint32_t)mmap(virtual_addr, size, prot, flags, fd, offset);
+    uint32_t result = (uint32_t)mmap(virtual_addr, size, prot, flags, fd, offset);
+    add_memory_mapping(current_task_PCB, result, prot, size, offset, "[heap]");
+    return result;
 }
 
 uint32_t MProtectHandler(Registers *regs){
@@ -248,11 +307,13 @@ uint32_t GenericSyscall(Registers *regs){
 }
 
 uint32_t SyscallHandler(Registers *regs){
-    if(regs->eax < 92 && regs->eax != 0){
-        if(*syscall_strings[regs->eax]){
-            printf("Syscall: %s\n", syscall_strings[regs->eax]);
-        } else {
-            printf("Undefined syscall: %d\n", regs->eax);
+    if(verbose){
+        if(regs->eax < 92 && regs->eax != 0){
+            if(*syscall_strings[regs->eax]){
+                printf("Syscall: %s\n", syscall_strings[regs->eax]);
+            } else {
+                printf("Undefined syscall: %d\n", regs->eax);
+            }
         }
     }
     switch(regs->eax){

@@ -14,7 +14,6 @@ executeSyscall:
     mov %ax, %ds
     mov %ax, %es
     mov %ax, %fs
-    #mov %ax, %gs
 
     push %esp
     
@@ -27,9 +26,6 @@ executeSyscall:
     mov %ax, %ds
     mov %ax, %es
     mov %ax, %fs
-
-    #pop %eax        #restore gs segment
-    #mov $0x18, %gs
 
     popal
     iret

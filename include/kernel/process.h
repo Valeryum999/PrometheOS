@@ -9,19 +9,7 @@
 #include <kernel/elf.h>
 #include <fs/fat.h>
 
-typedef struct task_struct{
-	void *esp;
-    void *esp0;
-    void *cr3;
-    struct task_struct *next;
-    void *eip;
-    int id;
-    uint8_t state;
-	ELF32_File *ELFfile;
-    uint8_t openedFiles;
-    FAT_File *fd[10];
-} task_struct;
-
 int load_process(task_struct *process, DISK *disk, const char* path);
+int change_to_new_executable(task_struct *process, DISK *disk, const char *path);
 
 #endif

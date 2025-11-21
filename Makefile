@@ -16,6 +16,8 @@ LIBK_FLAGS = -g -Og -std=gnu11 --sysroot=/home/valeryum/PrometheOS/sysroot -ffre
 ARCHDIR = arch/$(TARGET_ARCH)
 include $(ARCHDIR)/arch.mk
 
+QEMU_FLAGS = -chardev file,id=dbglog,path=debug.log -device isa-debugcon,iobase=0xE9,chardev=dbglog -cdrom
+
 OBJS = \
 	$(ARCH_OBJS) \
 	$(patsubst %.c,$(DESTDIR)/%.o,$(wildcard kernel/*.c)) \
@@ -27,10 +29,10 @@ LIBK_OBJS = \
 	$(patsubst %.c,$(DESTDIR)/%.libk.o,$(wildcard lib/string/*.c)) \
 
 qemu: $(DESTDIR)/prometheos.iso
-	qemu-system-$(TARGET_ARCH) -cdrom $<
+	qemu-system-$(TARGET_ARCH) $(QEMU_FLAGS) $<
 
 debug: $(DESTDIR)/prometheos.iso
-	qemu-system-$(TARGET_ARCH) -s -S -cdrom $<
+	qemu-system-$(TARGET_ARCH) -s -S $(QEMU_FLAGS) $<
 
 clean:
 	rm -rf $(DESTDIR)

@@ -7,6 +7,11 @@
 #define MAX_PAGES 10000
 #define PAGE_SIZE 4096  // Size of each page (4KB)
 
+typedef struct {
+    uint8_t *arr[MAX_PAGES];
+    int top;
+} stack_t;
+
 void init_stack();
 void *kalloc_page_frame();
 void *kalloc(size_t page_frames);

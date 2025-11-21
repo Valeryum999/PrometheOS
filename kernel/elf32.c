@@ -96,7 +96,7 @@ void ELF_printHeader(ELFHeader *header){
     printf("Section name index: %d\n", header->SectionNameIndex);
 }
 
-void ELF_printPermissions(uint32_t permissions){
+void ELF_printPermissions(int permissions){
     if(permissions & ELF_READ) printf("r");
     else printf("-");
     if(permissions & ELF_WRITE) printf("w");
@@ -210,14 +210,7 @@ void ELF_getString(uint32_t offset, ELF32_File *elfFile, char *buf){
     strcpy(buf, (char *)(elfFile->strTable + offset));
 }
 
-// void ELF_printSym(ELF32_Sym *sym, ObjectFile *object){
-//     char buf[255];
-//     ELF_getString(sym->st_name, object, buf);
-//     printf("Value\t\tSize\tType\tBind\tNdx\tName\n");
-//     printf("%08x\t%x\t%s\t%s\t%d\t%s\n",sym->st_value, sym->st_size, symTypeStr[sym->st_info & 0x0f], symBindStr[sym->st_info >> 4], sym->st_shndx, buf);
-// }
-
-int ELF_to_MMAP_perm(size_t elfPerm){
+int ELF_to_MMAP_perm(int elfPerm){
     return (elfPerm & ELF_EXECUTE) * 4 + (elfPerm & ELF_WRITE) + (elfPerm & ELF_READ) / 4;
 }
 
@@ -268,47 +261,6 @@ void ELF_printMapping(void *addr, uint32_t size, uint32_t flags, uint32_t offset
     printf(" with offset %x, page %x\n", offset, page);
 }
 
-// void ELF_parseFile(ObjectFile *object, FILE *file){
-//     object->elfFile->header = file;
-// }
-
-
-// ELF32_Sym *ELF_findSymbol(Process *process, const char* name, size_t ignore, size_t *lib){
-//     char buf[255];
-//     for(size_t i=0; i<process->numObjects; i++){
-//         ELF32SectionHeader *symTable = findSectionHeader(process->objects[i]->elfFile, process->objects[i]->elfFile->symTable);
-//         for(size_t j=0; j<symTable->sh_size / symTable->sh_entsize; j++){
-//             ELF_getString(process->objects[i]->elfFile->symbols[j].st_name, process->objects[i], buf);
-//             if(!strcmp(buf, name) && i != ignore){
-//                 printf("Found symbol for %s\n",name);
-//                 ELF_printSym(&process->objects[i]->elfFile->symbols[j], process->objects[i]);
-//                 *lib = i;
-//                 return &process->objects[i]->elfFile->symbols[j];
-//             }
-//         }
-//     }
-//     return NULL;
-// }
-
-// int isSearchPathLoaded(Process *process, const char* path){
-//     for(size_t i=0; i<process->numSearchPaths; i++){
-//         if(!strcmp(process->searchPaths[i], path)){
-//             return 1;
-//         }
-//     }
-
-//     return 0;
-// }
-
-// int isObjectLoaded(Process *process, const char* path){
-//     for(size_t i=0; i<process->numObjects; i++){
-//         if(!strcmp(process->objects[i]->path, path)){
-//             return 1;
-//         }
-//     }
-//     return 0;
-// }
-
 int ELF_parseFile(DISK *disk, FAT_File *fd, ELF32_File *file) {
     file->header = (ELFHeader *)(file + 1);
     FAT_LSeek(disk, fd, 0, SEEK_SET);
@@ -346,7 +298,9 @@ int ELF_parseFile(DISK *disk, FAT_File *fd, ELF32_File *file) {
     return 0;
 }
 
-int ELF_load(DISK *disk, FAT_File *fd, ELF32_File *file){
+extern int verbose;
+
+int ELF_load(DISK *disk, FAT_File *fd, ELF32_File *file, task_struct *process){
     uint32_t baseAddr;
     if(file->header->Type == ELF_TYPE_EXECUTABLE)
         baseAddr = 0x0;
@@ -358,32 +312,78 @@ int ELF_load(DISK *disk, FAT_File *fd, ELF32_File *file){
             void *addr = (void *)(baseAddr + file->programHeaders[i].VirtualAddress);
             void *page = (void *)align_page((size_t)addr);
             uint32_t offset = file->programHeaders[i].Offset;
-            ELF_printMapping(addr,
-                            file->programHeaders[i].MemorySize,
-                            file->programHeaders[i].Flags,
-                            offset,
-                            page);
+            if(verbose){
+                ELF_printMapping(addr,
+                                file->programHeaders[i].MemorySize,
+                                file->programHeaders[i].Flags,
+                                offset,
+                                page);
+            }
 
-            void *result = mmap(page, file->programHeaders[i].MemorySize, PAGE_WRITABLE | PAGE_USER, MAP_ANONYMOUS, -1, 0);
+            size_t size = file->programHeaders[i].MemorySize;
+            void *result = mmap(page, size, PAGE_WRITABLE | PAGE_USER, MAP_ANONYMOUS, -1, 0);
             if(result == NULL){
                 printf("Failed to mmap page %x!\n",page);
                 return -1;
             }
-            printf("Copying from %x + %x for %x bytes\n", baseAddr, file->programHeaders[i].Offset, file->programHeaders[i].FileSize);
+            add_memory_mapping(process, (uint32_t)result, ELF_to_MMAP_perm(file->programHeaders[i].Flags), size, 0, "[tbd]");
+            if(verbose)
+                printf("Copying from %x + %x for %x bytes @ %x\n", baseAddr, file->programHeaders[i].Offset, file->programHeaders[i].FileSize, addr);
             FAT_LSeek(disk, fd, offset, SEEK_SET);
             FAT_Read(disk, fd, file->programHeaders[i].FileSize, addr);
             if(file->programHeaders[i].MemorySize > file->programHeaders[i].FileSize){
-                printf("Zeroing out data from %x to %x\n",
-                        file->programHeaders[i].FileSize,
-                        file->programHeaders[i].MemorySize);
                 uint8_t *zero = (uint8_t *)(addr + file->programHeaders[i].FileSize);
-                for(size_t j=file->programHeaders[i].FileSize; j<file->programHeaders[i].MemorySize; j++){
-                    *zero = 0;
-                    zero++;
-                }
+                size_t size = file->programHeaders[i].MemorySize - file->programHeaders[i].FileSize;
+                if(verbose)
+                    printf("Zeroing out data from %x to %x\n",
+                            zero,
+                            zero + size);
+                memset(zero, 0, size);
             }
         }
     }
 
     return 0;
+}
+
+void add_memory_mapping(task_struct *process, 
+                        uint32_t start_addr, 
+                        int flags, 
+                        size_t size, 
+                        size_t offset, 
+                        const char *path) {
+    for(size_t i=0; i<process->number_of_mappings; i++){
+        //can merge
+        if(process->vmmap[i].end_addr == start_addr 
+            && process->vmmap[i].flags == flags
+            && !strcmp(process->vmmap[i].path, path)){
+            process->vmmap[i].end_addr += size;
+            process->vmmap[i].size += size;
+            return;
+        }
+    }
+    process->vmmap[process->number_of_mappings].start_addr = start_addr;
+    if(size & 0xfff)
+        process->vmmap[process->number_of_mappings].end_addr = start_addr + (size & ~0xfff) + PAGE_SIZE;
+    else
+        process->vmmap[process->number_of_mappings].end_addr = start_addr + size;                    
+    process->vmmap[process->number_of_mappings].size = size;
+    process->vmmap[process->number_of_mappings].offset = offset;
+    process->vmmap[process->number_of_mappings].flags = flags;
+    strcpy(process->vmmap[process->number_of_mappings].path, path);
+    process->number_of_mappings++;
+}
+
+void print_memory_mappings(task_struct *process){
+    //dirty workaround, to fix
+    printf("Start\t\tEnd\t\t\tPerm\tSize\t\tOffset\tFile\n");
+    for(size_t i=0; i<process->number_of_mappings; i++){
+        printf("0x%x\t0x%x\t",process->vmmap[i].start_addr,
+                                         process->vmmap[i].end_addr);
+        ELF_printPermissions(ELF_to_MMAP_perm(process->vmmap[i].flags));
+        printf("\t\t%x\t\t%x\t\t%s\n",process->vmmap[i].size,
+                  process->vmmap[i].offset,
+                  process->vmmap[i].path);
+        
+    }
 }

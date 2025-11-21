@@ -4,7 +4,7 @@ uint32_t kernel_page_directory;
 uint32_t count_process_id = 0;
 ELF32_File *dynamicLoader;
 
-extern void __attribute__((naked)) task_entry(void *first_eip);
+extern void __attribute__((naked)) task_entry();
 
 void *map_page_directory_kernel(){
     uint32_t *process_pd = (uint32_t *)mmap(NULL, PAGE_SIZE, PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER, MAP_ANONYMOUS, -1, 0);
@@ -29,9 +29,12 @@ void write_cr3(uint32_t pd){
     __asm__ volatile("mov %0, %%cr3" :: "r"(pd));
 }
 
-int load_process_ELF(task_struct *process, DISK *disk, const char* path, void *page_directory){
-    process->cr3 = (void *)page_directory; 
-    process->ELFfile = mmap(NULL, 0x1000, PROT_READ | PROT_WRITE, MAP_ANONYMOUS, -1, 0);
+extern void kpanic();
+
+int load_process_ELF(task_struct *process, DISK *disk, const char* path, int isExecve){
+    process->ELFfile = mmap(NULL, PAGE_SIZE, PROT_READ | PROT_WRITE, MAP_ANONYMOUS, -1, 0);
+    add_memory_mapping(process, (uint32_t)process->ELFfile, PROT_READ|PROT_WRITE, PAGE_SIZE, 0, "[exec ELFfile]");
+    
     
     FAT_File *fd = FAT_Open(disk, path);
 
@@ -44,11 +47,13 @@ int load_process_ELF(task_struct *process, DISK *disk, const char* path, void *p
         return -1;
     }
     
-    if(ELF_load(disk, fd, process->ELFfile)){
+    if(ELF_load(disk, fd, process->ELFfile, process)){
         return -1;
     }
 
     FAT_Close(disk, fd);
+
+    process->eip = (void *)process->ELFfile->header->ProgramEntryPosition;
 
     fd = FAT_Open(disk, "/usr/lib/ld.so");
 
@@ -57,7 +62,9 @@ int load_process_ELF(task_struct *process, DISK *disk, const char* path, void *p
         return -1;
     }
 
-    dynamicLoader = mmap(NULL, 0x1000, PROT_READ | PROT_WRITE, MAP_ANONYMOUS, -1, 0);
+    dynamicLoader = mmap(NULL, PAGE_SIZE, PROT_READ | PROT_WRITE, MAP_ANONYMOUS, -1, 0);
+
+    add_memory_mapping(process, (uint32_t)dynamicLoader, PROT_READ | PROT_WRITE, PAGE_SIZE, 0, "[ld.so ELFfile]");
 
     if(dynamicLoader == NULL){
         printf("Failed to malloc memory for dynamic loader");
@@ -68,27 +75,59 @@ int load_process_ELF(task_struct *process, DISK *disk, const char* path, void *p
         return -1;
     }
 
-    if(ELF_load(disk, fd, dynamicLoader)){
+    if(ELF_load(disk, fd, dynamicLoader, process)){
         return -1;
     }
     
     FAT_Close(disk, fd);
 
-    process->eip = (void *)process->ELFfile->header->ProgramEntryPosition;
     return 0;
 }
 
 void map_stack(task_struct *process){
-    void *stack = mmap(NULL, 4*PAGE_SIZE, PAGE_WRITABLE | PAGE_USER | PAGE_PRESENT, MAP_ANONYMOUS, -1, 0);
-    process->esp = stack + 0xfcc + 3*PAGE_SIZE;
-    process->esp0 = stack + 4*PAGE_SIZE;
-    uint32_t *buffer = (uint32_t *)(stack + 0xfdc + 3*PAGE_SIZE);
+    void *stack_addr = mmap((void *)0xbff00000, 8*PAGE_SIZE, PAGE_WRITABLE | PAGE_USER | PAGE_PRESENT, MAP_ANONYMOUS, -1, 0);
+    process->esp0 = stack_addr + 8*PAGE_SIZE;
+    process->esp = stack_addr + 0xfcc + 7*PAGE_SIZE;
+    uint32_t *buffer = (uint32_t *)(stack_addr + 0xfdc + 7*PAGE_SIZE);
     *buffer = (uint32_t)task_entry;
+    add_memory_mapping(process, (uint32_t)stack_addr, PROT_READ | PROT_WRITE, 8*PAGE_SIZE, 0, "stack");
+}
+
+void reset_memory_mappings(task_struct *process){
+    process->number_of_mappings = 1;
+}
+
+void reset_stack(task_struct *process){
+    process->esp = process->esp0 - 0x34;
+    uint32_t *buffer = (uint32_t *)(process->esp + 0x10);
+    *buffer = (uint32_t)task_entry;
+}
+
+#define NO_EXECVE 0
+#define IS_EXECVE 1
+
+int change_to_new_executable(task_struct *process, DISK *disk, const char *path){
+    process->number_of_mappings = 0;
+    if(load_process_ELF(process, disk, path, NO_EXECVE) != 0){
+        printf("Failed to load ELF file!\n");
+        return -1;
+    }
+    reset_stack(process);
+    asm volatile(
+        "mov %0, %%esp \n\t" 
+        "pop %%ebp \n\t"
+        "pop %%edi \n\t"
+        "pop %%esi \n\t"
+        "pop %%ebx \n\t"
+        "ret"
+        :: "r"(process->esp));
+    return 0;
 }
 
 int load_process(task_struct *process, DISK *disk, const char* path){
     void *process_pd = map_page_directory_kernel();
     write_cr3((uint32_t)process_pd);
+    process->cr3 = process_pd; 
 
     FAT_File *stdin = FAT_Open(disk, "/dev/fd/0");
     if(stdin == NULL){
@@ -113,7 +152,7 @@ int load_process(task_struct *process, DISK *disk, const char* path){
     process->fd[2] = stderr;
     process->openedFiles = 3;
 
-    if(load_process_ELF(process, disk, path, process_pd) != 0){
+    if(load_process_ELF(process, disk, path, NO_EXECVE) != 0){
         printf("Failed to load ELF file!\n");
         return -1;
     }
