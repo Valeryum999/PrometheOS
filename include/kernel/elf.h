@@ -301,17 +301,18 @@ typedef struct memory_mappings{
 } memory_mappings;
 
 typedef struct task_struct{
-	void *esp;
-    void *esp0;
-    void *cr3;
-    struct task_struct *next;
-    void *eip;
-    int id;
-    uint8_t state;
-	ELF32_File *ELFfile;
-    uint8_t openedFiles;
-    FAT_File *fd[10];
-    memory_mappings vmmap[20];
+	void *esp;  // initial stack pointer
+    void *esp0; // stack top
+    void *cr3;  // page directory
+    struct task_struct *next;  // next struct in queue
+    void *eip;  // process's instruction pointer
+    int pid; //process id
+    int ppid; //parent process id
+    uint8_t state; //state of the process
+	ELF32_File *ELFfile; //pointer to ELFfile
+    uint8_t openedFiles; //number of openedFiles
+    FAT_File *fd[10];   // file descriptors
+    memory_mappings vmmap[20];  //memory mappings
     uint8_t number_of_mappings;
 
 } task_struct;

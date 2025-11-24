@@ -24,6 +24,7 @@ stack_top:
 .global _start
 .type _start, @function
 _start:
+	add %eax, 1
 	call _entry
 	call _init
 	cli

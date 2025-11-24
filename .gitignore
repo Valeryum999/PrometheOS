@@ -3,3 +3,4 @@
 .gdbinit
 /obj
 /sysroot
+debug.log

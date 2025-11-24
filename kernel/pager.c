@@ -14,11 +14,11 @@ extern uint32_t end_kernel;
 __attribute__((section(".lowtext"))) void init_paging(void){
     uint32_t start_frame = (uint32_t)page_tables[0];
     
-    page_directory[0] = ((uint32_t) page_tables[0] | PAGE_WRITABLE | PAGE_PRESENT);
+    page_directory[0] = ((uint32_t) page_tables[0] | PAGE_USER | PAGE_WRITABLE | PAGE_PRESENT);
     //alloc and map page tables of pd[1023] themselves, 4MiB spanning after the kernel
     //TODO: fix 0
     for(int i=1; i<1023; i++){
-        page_directory[i] = (start_frame + (PAGE_SIZE * i)) | PAGE_WRITABLE | PAGE_PRESENT;
+        page_directory[i] = (start_frame + (PAGE_SIZE * i)) | PAGE_USER | PAGE_WRITABLE | PAGE_PRESENT;
     }
 
     //alloc kernel page tables
@@ -27,17 +27,17 @@ __attribute__((section(".lowtext"))) void init_paging(void){
         uint32_t *kernel_page_table = (uint32_t *)(start_frame + i * PAGE_SIZE);
         //TODO: stop allocating page tables when all the kernel is mapped (for now it maps even beyond until the end of the pd)
         for(int j = 0; j < 1024; j++){
-            kernel_page_table[j] = (KERNEL_LOW_BASE + page_directory_increment + j * PAGE_SIZE) | PAGE_WRITABLE | PAGE_PRESENT;
+            kernel_page_table[j] = (KERNEL_LOW_BASE + page_directory_increment + j * PAGE_SIZE) | PAGE_USER | PAGE_WRITABLE | PAGE_PRESENT;
         }
     }
     
     //TODO: fix vga at 0x68000 + stuff needs to be mapped either manually or by page fault handler
     for(int i = 0; i < 257; i++){
-        page_tables[0][i] = (i * PAGE_SIZE) | PAGE_WRITABLE | PAGE_PRESENT;
+        page_tables[0][i] = (i * PAGE_SIZE) | PAGE_USER | PAGE_WRITABLE | PAGE_PRESENT;
     }
     
     //setup recursive mapping
-    page_directory[1023] = (uint32_t) page_directory | PAGE_WRITABLE | PAGE_PRESENT;
+    page_directory[1023] = (uint32_t) page_directory | PAGE_USER | PAGE_WRITABLE | PAGE_PRESENT;
 
     //load pd into cr3 and enter paging mode by setting pg in cr0
     load_page_directory((uint32_t)page_directory);
@@ -48,10 +48,14 @@ __attribute__((section(".lowtext"))) void load_page_directory(uint32_t page_dire
     __asm__ volatile("mov %0, %%cr3" :: "r"(page_directory_address));
 }
 
+#define WP 0x10000
+#define PG 0x80000000
+
 __attribute__((section(".lowtext"))) void enable_paging() {
     uint32_t cr0;
     __asm__ volatile("mov %%cr0, %0" : "=r"(cr0));
-    cr0 |= 0x80000000;  // Set the paging (PG) bit
+    cr0 |= PG;  // Set the paging (PG) bit
+    cr0 |= WP; // doesn't seem to be working
     __asm__ volatile("mov %0, %%cr0" :: "r"(cr0));
 }
 
@@ -91,7 +95,8 @@ void *mmap(void *virtualaddr, size_t size, int prot, int flags, int fd, uint32_t
         }
         
         void *physaddr = kalloc_page_frame();
-        page_table[page_table_index] = ((uint32_t)physaddr) | (prot & 0xFFF) | PAGE_PRESENT;
+        // momentairily forcing RW only (no user)
+        page_table[page_table_index] = ((uint32_t)physaddr) | PAGE_USER | PAGE_WRITABLE | PAGE_PRESENT;
 
         //flush TLB
         asm volatile("invlpg (%0)" ::"r" (virtualaddr+i*PAGE_SIZE) : "memory");

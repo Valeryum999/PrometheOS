@@ -15,3 +15,5 @@ ARCH_OBJS= \
 	$(DESTDIR)/$(ARCHDIR)/crti.o \
 	$(DESTDIR)/$(ARCHDIR)/crtn.o \
 	$(DESTDIR)/$(ARCHDIR)/syscall.o \
+	$(DESTDIR)/$(ARCHDIR)/after_fork.o \
+	$(DESTDIR)/$(ARCHDIR)/userland.o \

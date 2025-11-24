@@ -1,6 +1,6 @@
 # If any overriding is necessary, you should do `make CC=i386-elf-gcc`, NOT `CC=i386-elf-gcc make`
 
-.PHONY: qemu, debug, clean
+.PHONY: qemu, kvm, debug, clean
 
 TARGET_ARCH = i386
 DESTDIR = obj
@@ -16,7 +16,7 @@ LIBK_FLAGS = -g -Og -std=gnu11 --sysroot=/home/valeryum/PrometheOS/sysroot -ffre
 ARCHDIR = arch/$(TARGET_ARCH)
 include $(ARCHDIR)/arch.mk
 
-QEMU_FLAGS = -chardev file,id=dbglog,path=debug.log -device isa-debugcon,iobase=0xE9,chardev=dbglog -cdrom
+QEMU_FLAGS = -monitor stdio -chardev file,id=dbglog,path=debug.log -device isa-debugcon,iobase=0xE9,chardev=dbglog -cdrom
 
 OBJS = \
 	$(ARCH_OBJS) \
@@ -30,6 +30,9 @@ LIBK_OBJS = \
 
 qemu: $(DESTDIR)/prometheos.iso
 	qemu-system-$(TARGET_ARCH) $(QEMU_FLAGS) $<
+
+kvm: $(DESTDIR)/prometheos.iso
+	qemu-system-$(TARGET_ARCH) --enable-kvm $(QEMU_FLAGS) $<
 
 debug: $(DESTDIR)/prometheos.iso
 	qemu-system-$(TARGET_ARCH) -s -S $(QEMU_FLAGS) $<

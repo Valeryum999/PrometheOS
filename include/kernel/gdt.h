@@ -46,6 +46,36 @@ typedef enum {
     GDT_FLAG_GRANULARITY_4K                 = 0x80,
 } GDT_FLAGS;
 
+typedef struct TSS_struct{
+    uint32_t prev_tss;
+    uint32_t esp0;
+    uint32_t ss0;
+    uint32_t esp1;
+    uint32_t ss1;
+    uint32_t esp2;
+    uint32_t ss2;
+    uint32_t cr3;
+    uint32_t eip;
+    uint32_t eflags;
+    uint32_t eax;
+    uint32_t ecx;
+    uint32_t edx;
+    uint32_t ebx;
+    uint32_t esp;
+    uint32_t ebp;
+    uint32_t esi;
+    uint32_t edi;
+    uint32_t es;
+    uint32_t cs;
+    uint32_t ss;
+    uint32_t ds;
+    uint32_t fs;
+    uint32_t gs;
+    uint32_t ldt;
+    uint32_t trap;
+    uint32_t iomap_base;
+} __attribute__((packed)) TSS_struct;
+
 #define GDT_LIMIT_LOW(limit)                (limit & 0xffff)
 #define GDT_BASE_LOW(base)                  (base & 0xffff)
 #define GDT_BASE_MIDDLE(base)               ((base >> 16) & 0xff)
@@ -63,9 +93,10 @@ typedef enum {
 
 #define GDT_CODE_SEGMENT 0x08
 #define GDT_DATA_SEGMENT 0x10
-#define GDT_GSBASE_SEGMENT 0x18
+#define GDT_GSBASE_SEGMENT 0x30
 
 void init_GDT(void);
 int change_gs_base(uint32_t base);
+int load_TSS(uint32_t esp0);
 
 #endif

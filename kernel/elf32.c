@@ -321,7 +321,7 @@ int ELF_load(DISK *disk, FAT_File *fd, ELF32_File *file, task_struct *process){
             }
 
             size_t size = file->programHeaders[i].MemorySize;
-            void *result = mmap(page, size, PAGE_WRITABLE | PAGE_USER, MAP_ANONYMOUS, -1, 0);
+        void *result = mmap(page, size, PAGE_USER | PAGE_WRITABLE, MAP_ANONYMOUS, -1, 0);
             if(result == NULL){
                 printf("Failed to mmap page %x!\n",page);
                 return -1;

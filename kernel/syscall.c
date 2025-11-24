@@ -5,6 +5,7 @@ extern DISK *disk;
 extern task_struct *current_task_PCB;
 extern ELF32_File *dynamicLoader;
 int verbose = 0;
+extern uint32_t count_process_id;
 
 #define STDIN 0
 #define STDOUT 1
@@ -30,11 +31,6 @@ uint32_t MLibcLog(Registers *regs){
 
 uint32_t ExitHandler(Registers *regs){
     printf("Exited with status code %d\n", regs->ebx);
-    task_struct *previous_task = current_task_PCB;
-    while(previous_task->next != current_task_PCB){
-        previous_task = previous_task->next;
-    }
-    previous_task->next = current_task_PCB->next;
 
     // free all the page frames allocated in this process' address space
     for(size_t i=0; i<current_task_PCB->number_of_mappings; i++){
@@ -56,16 +52,60 @@ uint32_t ExitHandler(Registers *regs){
     free(get_physaddr(virtual_page_directory));
 
     // finally, switch to the next process in queue
-    switch_to_task(current_task_PCB->next);
+    schedule();
 
     // does not return
     return 0;
 }
 
+extern void afterFork(task_struct *child);
+
 uint32_t ForkHandler(Registers *regs){
-    // task_struct *child = mmap((void *)0xe0000000, 0x1000, PROT_READ | PROT_WRITE, MAP_ANONYMOUS, -1, 0);
-    printf("FORK: stubbed\n");
-    return current_task_PCB->id;
+    printf("FORK: idk forking ig\n");
+    // TODO ASAP all of these mappings should be in the kernel heap
+    uint32_t *child_pd = mmap(NULL, PAGE_SIZE, PAGE_WRITABLE, MAP_ANONYMOUS, -1, 0);
+    for(size_t i=0; i<256; i++){
+        child_pd[i] = virtual_page_directory[i];
+    }
+
+    for(size_t i=256; i<768; i++){
+        // copy all memory mappings as read only and when 
+        // a page fault happens do copy on write
+        child_pd[i] = virtual_page_directory[i] & ~PAGE_WRITABLE;
+    }
+
+    for(size_t i=768; i<1023; i++){
+        child_pd[i] = virtual_page_directory[i];
+    }
+    // TODO should unmap the child_pd from the parent's pd
+
+    uint32_t child_pd_phys_addr = (uint32_t)get_physaddr((void *)child_pd);
+    child_pd[1023] = child_pd_phys_addr | PAGE_WRITABLE | PAGE_PRESENT;
+    // should be in kernel heap
+    task_struct *child_task = mmap(NULL, PAGE_SIZE, PAGE_WRITABLE, MAP_ANONYMOUS, -1, 0);
+    child_task->cr3 = (void *)child_pd_phys_addr;
+    child_task->esp = (void *)regs->kern_esp;
+    child_task->esp0 = current_task_PCB->esp0;
+    child_task->eip = (void *)regs->eip;
+
+    //should the child inherit all the file descriptors?
+    child_task->fd[0] = current_task_PCB->fd[0]; 
+    child_task->fd[1] = current_task_PCB->fd[1]; 
+    child_task->fd[2] = current_task_PCB->fd[2]; 
+    child_task->openedFiles = current_task_PCB->openedFiles;
+
+    child_task->number_of_mappings = current_task_PCB->number_of_mappings;
+    for(size_t i=0; i<child_task->number_of_mappings; i++){
+        child_task->vmmap[i] = current_task_PCB->vmmap[i]; 
+    }
+
+    child_task->ppid = current_task_PCB->pid;
+    child_task->pid = count_process_id++;
+    child_task->state = TASK_RUNNING;
+    //switch to the child process
+    add_process_to_schedule(child_task);
+    afterFork(child_task);
+    return (child_task->pid == current_task_PCB->pid) ? 0 : child_task->pid;
 }
 
 uint32_t ReadHandler(Registers *regs){
@@ -117,8 +157,10 @@ uint32_t CloseHandler(Registers *regs){
 
 uint32_t WaitPidHandler(Registers *regs){
     uint32_t pid = regs->ebx;
-    printf("Wait PID Handler, for now stubbed\n");
-    return 0;
+    current_task_PCB->state = TASK_INTERRUPTIBLE;
+    deactivate_current_running_task();
+    schedule();
+    return pid;
 }
 
 uint32_t LinkHandler(Registers *regs){
@@ -173,7 +215,7 @@ uint32_t LSeekHandler(Registers *regs){
 }
 
 uint32_t GetPidHandler(Registers *regs){
-    return current_task_PCB->id;
+    return current_task_PCB->pid;
 }
 
 uint32_t GetUidHandler(Registers *regs){
@@ -246,7 +288,7 @@ uint32_t MMAPHandler(Registers *regs){
                 flags,
                 fd,
                 offset);
-    uint32_t result = (uint32_t)mmap(virtual_addr, size, prot, flags, fd, offset);
+    uint32_t result = (uint32_t)mmap(virtual_addr, size, PAGE_WRITABLE, flags, fd, offset);
     add_memory_mapping(current_task_PCB, result, prot, size, offset, "[heap]");
     return result;
 }

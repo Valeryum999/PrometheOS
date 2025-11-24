@@ -48,11 +48,11 @@ static const char* const g_Exceptions[] = {
 void PageFaultHandler(Registers *regs){
     uint32_t cr2;
     asm volatile("mov %%cr2, %0" : "=r"(cr2));
-    printf("PF addr @ %x",cr2);
+    printf("Page Fault addr @ %x",cr2);
     printf("  eax=%x ebx=%x ecx=%x edx=%x esi=%x edi=%x\n",
         regs->eax, regs->ebx, regs->ecx, regs->edx, regs->esi, regs->edi);
-    printf("  esp=%x ebp=%x eip=%x eflags=%x cs=%x ds=%x ss=%x\n",
-        regs->esp, regs->ebp, regs->eip, regs->eflags, regs->cs, regs->ds, regs->ss);
+    printf("  esp=%x kern_esp=%x ebp=%x eip=%x eflags=%x cs=%x ds=%x ss=%x\n",
+        regs->esp, regs->kern_esp, regs->ebp, regs->eip, regs->eflags, regs->cs, regs->ds, regs->ss);
     printf("  interrupt=%x errorcode=%x\n", regs->interrupt, regs->error);
     printf("KERNEL PANIC!\n");
     printf("how the fuck do i debug this\n");

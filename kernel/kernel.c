@@ -36,9 +36,11 @@ void kernel_main(void) {
 	init_GDT();
 	init_IDT();
 	init_ISR();
+	init_stack();
+	void *TSS_stack = mmap((void *)0xcfff8000, 0x8000, PAGE_WRITABLE, MAP_ANONYMOUS, -1, 0);
+	load_TSS((uint32_t)(TSS_stack + 0x8000));
 	i686_IRQ_Initialize();
 	i686_IRQ_RegisterHandler(0, timer);
-	init_stack();
 	init_keyboard();
 	printf("Hello World!\n");
 	printf("End kernel is @ %x\n", &end_kernel);
@@ -61,15 +63,16 @@ void kernel_main(void) {
 	disk = (DISK *) guess_disk_pos;
 	FAT_Initialize(disk);
 	printf("stack top is @ %x\n", stack.top);
-	task_struct *processTestMlibc = mmap((void *)0xd0000000, 0x1000, PROT_READ | PROT_WRITE, MAP_ANONYMOUS, -1, 0);
+	task_struct *processTestMlibc = mmap((void *)0xd0000000, 0x1000, PAGE_WRITABLE, MAP_ANONYMOUS, -1, 0);
 	task_struct idle_task;
 	initialize_multiprocessing(&idle_task);
 	add_process_to_schedule(processTestMlibc);
 	// add_memory_mapping(processTestMlibc, 0, PROT_READ|PROT_WRITE, 0x100000, 0, "[VGA + FAT]");
-	load_process(processTestMlibc, disk, "/usr/bin/execve");
+	load_process(processTestMlibc, disk, "/usr/bin/fork");
 	// add_process_to_schedule(processTestMlibc2);
 	schedule();
 	print_memory_mappings(processTestMlibc);
+	// schedule();
 	// i686_IRQ_RegisterHandler(0, schedule);
 	printf("stack top is @ %x\n", stack.top);
 	while(1){

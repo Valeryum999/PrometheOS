@@ -331,7 +331,9 @@ void FAT_NextSector(DISK *disk, FAT_FileData *fd){
 }
 
 int FAT_LSeek(DISK *disk, FAT_File *file, uint32_t offset, uint32_t whence){
-    printf("LSEEK: seeking to offset 0x%x with whence %d\n", offset, whence);
+    if(verbose)
+        printf("LSEEK: seeking to offset 0x%x with whence %d\n", offset, whence);
+        
     if(file->Handle < 0 || file->Handle > MAX_FILE_HANDLES){
         printf("Something really bad happened, file handle OOB!\n");
         return -1;

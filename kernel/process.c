@@ -1,13 +1,17 @@
 #include <kernel/process.h>
 
-uint32_t kernel_page_directory;
 uint32_t count_process_id = 0;
+uint32_t kernel_page_directory;
 ELF32_File *dynamicLoader;
 
 extern void __attribute__((naked)) task_entry();
 
+void write_cr3(uint32_t pd){
+    __asm__ volatile("mov %0, %%cr3" :: "r"(pd));
+}
+
 void *map_page_directory_kernel(){
-    uint32_t *process_pd = (uint32_t *)mmap(NULL, PAGE_SIZE, PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER, MAP_ANONYMOUS, -1, 0);
+    uint32_t *process_pd = (uint32_t *)mmap(NULL, PAGE_SIZE, PAGE_WRITABLE, MAP_ANONYMOUS, -1, 0);
     void *phys_addr = get_physaddr((void *)process_pd);
     
     //map first page directory for VGA text buffer
@@ -25,14 +29,10 @@ void *map_page_directory_kernel(){
     return phys_addr;
 }
 
-void write_cr3(uint32_t pd){
-    __asm__ volatile("mov %0, %%cr3" :: "r"(pd));
-}
-
 extern void kpanic();
 
 int load_process_ELF(task_struct *process, DISK *disk, const char* path, int isExecve){
-    process->ELFfile = mmap(NULL, PAGE_SIZE, PROT_READ | PROT_WRITE, MAP_ANONYMOUS, -1, 0);
+    process->ELFfile = mmap(NULL, PAGE_SIZE, PAGE_WRITABLE, MAP_ANONYMOUS, -1, 0);
     add_memory_mapping(process, (uint32_t)process->ELFfile, PROT_READ|PROT_WRITE, PAGE_SIZE, 0, "[exec ELFfile]");
     
     
@@ -62,7 +62,7 @@ int load_process_ELF(task_struct *process, DISK *disk, const char* path, int isE
         return -1;
     }
 
-    dynamicLoader = mmap(NULL, PAGE_SIZE, PROT_READ | PROT_WRITE, MAP_ANONYMOUS, -1, 0);
+    dynamicLoader = mmap(NULL, PAGE_SIZE, PAGE_WRITABLE, MAP_ANONYMOUS, -1, 0);
 
     add_memory_mapping(process, (uint32_t)dynamicLoader, PROT_READ | PROT_WRITE, PAGE_SIZE, 0, "[ld.so ELFfile]");
 
@@ -85,16 +85,12 @@ int load_process_ELF(task_struct *process, DISK *disk, const char* path, int isE
 }
 
 void map_stack(task_struct *process){
-    void *stack_addr = mmap((void *)0xbff00000, 8*PAGE_SIZE, PAGE_WRITABLE | PAGE_USER | PAGE_PRESENT, MAP_ANONYMOUS, -1, 0);
+    void *stack_addr = mmap((void *)0xbff00000, 8*PAGE_SIZE, PAGE_WRITABLE, MAP_ANONYMOUS, -1, 0);
     process->esp0 = stack_addr + 8*PAGE_SIZE;
     process->esp = stack_addr + 0xfcc + 7*PAGE_SIZE;
     uint32_t *buffer = (uint32_t *)(stack_addr + 0xfdc + 7*PAGE_SIZE);
     *buffer = (uint32_t)task_entry;
     add_memory_mapping(process, (uint32_t)stack_addr, PROT_READ | PROT_WRITE, 8*PAGE_SIZE, 0, "stack");
-}
-
-void reset_memory_mappings(task_struct *process){
-    process->number_of_mappings = 1;
 }
 
 void reset_stack(task_struct *process){
@@ -161,6 +157,7 @@ int load_process(task_struct *process, DISK *disk, const char* path){
 
     write_cr3(kernel_page_directory & ~0xfff);
     
-    process->id = count_process_id++;
+    process->pid = count_process_id++;
+    process->state = TASK_RUNNING;
     return 0;
 }
