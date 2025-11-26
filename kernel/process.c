@@ -10,8 +10,11 @@ void write_cr3(uint32_t pd){
     __asm__ volatile("mov %0, %%cr3" :: "r"(pd));
 }
 
+extern uint32_t kernel_heap_alloc;
+
 void *map_page_directory_kernel(){
-    uint32_t *process_pd = (uint32_t *)mmap(NULL, PAGE_SIZE, PAGE_WRITABLE, MAP_ANONYMOUS, -1, 0);
+    uint32_t *process_pd = (uint32_t *)kernel_heap_alloc;
+    kernel_heap_alloc += PAGE_SIZE;
     void *phys_addr = get_physaddr((void *)process_pd);
     
     //map first page directory for VGA text buffer
@@ -86,15 +89,18 @@ int load_process_ELF(task_struct *process, DISK *disk, const char* path, int isE
 
 void map_stack(task_struct *process){
     void *stack_addr = mmap((void *)0xbff00000, 8*PAGE_SIZE, PAGE_WRITABLE, MAP_ANONYMOUS, -1, 0);
-    process->esp0 = stack_addr + 8*PAGE_SIZE;
+    void *kstack_addr = mmap((void *)kernel_heap_alloc, PAGE_SIZE, PAGE_WRITABLE, MAP_ANONYMOUS, -1, 0);
+    kernel_heap_alloc += PAGE_SIZE;
+    process->esp0 = kstack_addr + PAGE_SIZE;
     process->esp = stack_addr + 0xfcc + 7*PAGE_SIZE;
     uint32_t *buffer = (uint32_t *)(stack_addr + 0xfdc + 7*PAGE_SIZE);
     *buffer = (uint32_t)task_entry;
     add_memory_mapping(process, (uint32_t)stack_addr, PROT_READ | PROT_WRITE, 8*PAGE_SIZE, 0, "stack");
+    add_memory_mapping(process, (uint32_t)kstack_addr, PROT_READ | PROT_WRITE, PAGE_SIZE, 0, "kstack");
 }
 
 void reset_stack(task_struct *process){
-    process->esp = process->esp0 - 0x34;
+    process->esp = (void *)0xbff00000 + 7*PAGE_SIZE + 0xfcc;
     uint32_t *buffer = (uint32_t *)(process->esp + 0x10);
     *buffer = (uint32_t)task_entry;
 }

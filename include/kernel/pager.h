@@ -25,6 +25,7 @@ void init_page_tables();
 void kalloc_page_tables(uint32_t *virtualaddr);
 void *get_physaddr(void *virtualaddr);
 void *mmap(void *virtualaddr, size_t size, int prot, int flags, int fd, uint32_t offset);
+void remap_page(void *page, void *new_addr);
 int mprotect(void *start, size_t size, uint32_t prot);
 void load_page_directory(uint32_t page_directory_address);
 void enable_paging();

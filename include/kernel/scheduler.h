@@ -6,7 +6,7 @@
 
 void initialize_multiprocessing(task_struct *idle_task_copy);
 void schedule();
-extern void switch_to_task(task_struct* next_thread);
+extern void __attribute__((cdecl)) switch_to_task(task_struct* next_thread);
 void add_process_to_schedule(task_struct *next_task);
 void add_process_to_waitqueue(task_struct *next_task);
 task_struct* remove_running_process_from_runqueue();

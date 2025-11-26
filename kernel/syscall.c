@@ -29,65 +29,82 @@ uint32_t MLibcLog(Registers *regs){
     return 0;
 }
 
+extern void afterFork(task_struct *child);
+extern uint32_t kernel_heap_alloc;
+
 uint32_t ExitHandler(Registers *regs){
     printf("Exited with status code %d\n", regs->ebx);
 
     // free all the page frames allocated in this process' address space
-    for(size_t i=0; i<current_task_PCB->number_of_mappings; i++){
-        void *start_addr = get_physaddr((void *)current_task_PCB->vmmap[i].start_addr);
-        size_t page_frames = (current_task_PCB->vmmap[i].end_addr - current_task_PCB->vmmap[i].start_addr) / PAGE_SIZE;
-        free_page_frames(start_addr, page_frames);
-    }
+    // for(size_t i=0; i<current_task_PCB->number_of_mappings; i++){
+    //     void *start_addr = get_physaddr((void *)current_task_PCB->vmmap[i].start_addr);
+    //     size_t page_frames = (current_task_PCB->vmmap[i].end_addr - current_task_PCB->vmmap[i].start_addr) / PAGE_SIZE;
+    //     free_page_frames(start_addr, page_frames);
+    // }
 
-    // free curr executable ELFfile struct
-    free(get_physaddr((void *)current_task_PCB->ELFfile));
+    // // free curr executable ELFfile struct
+    // free(get_physaddr((void *)current_task_PCB->ELFfile));
 
-    // free curr executable task_struct
-    free(get_physaddr((void *)current_task_PCB));
+    // // free curr executable task_struct
+    // free(get_physaddr((void *)current_task_PCB));
 
-    // free ld.so ELFfile struct
-    free(get_physaddr((void *)dynamicLoader));
+    // // free ld.so ELFfile struct
+    // free(get_physaddr((void *)dynamicLoader));
 
-    // free the page directory thanks to recursive paging
-    free(get_physaddr(virtual_page_directory));
+    // // free the page directory thanks to recursive paging
+    // free(get_physaddr(virtual_page_directory));
 
+    remove_running_process_from_runqueue();
     // finally, switch to the next process in queue
     schedule();
+    // afterFork(current_task_PCB->next);
 
-    // does not return
+    // should not return
     return 0;
 }
-
-extern void afterFork(task_struct *child);
 
 uint32_t ForkHandler(Registers *regs){
     printf("FORK: idk forking ig\n");
     // TODO ASAP all of these mappings should be in the kernel heap
-    uint32_t *child_pd = mmap(NULL, PAGE_SIZE, PAGE_WRITABLE, MAP_ANONYMOUS, -1, 0);
-    for(size_t i=0; i<256; i++){
+    uint32_t *child_pd = mmap((void *)kernel_heap_alloc, PAGE_SIZE, PAGE_WRITABLE, MAP_ANONYMOUS, -1, 0);
+    kernel_heap_alloc += PAGE_SIZE;
+
+    //copy the parent's pd
+    for(size_t i=0; i<1023; i++){
         child_pd[i] = virtual_page_directory[i];
     }
 
-    for(size_t i=256; i<768; i++){
-        // copy all memory mappings as read only and when 
-        // a page fault happens do copy on write
-        child_pd[i] = virtual_page_directory[i] & ~PAGE_WRITABLE;
+    //set every PTE as read-only to COW only when needed
+    for(size_t i=1; i<768; i++){
+        if(!(virtual_page_directory[i] & PAGE_PRESENT)){
+            continue;
+        }
+        uint32_t *page_table = (uint32_t *)(0xffc00000 + i * PAGE_SIZE);
+        uint32_t *child_page_table = mmap((void *)kernel_heap_alloc, PAGE_SIZE, PAGE_WRITABLE, MAP_ANONYMOUS, -1, 0);
+        kernel_heap_alloc += PAGE_SIZE;
+
+        child_pd[i] = (uint32_t)get_physaddr(child_page_table) | PAGE_USER | PAGE_WRITABLE | PAGE_PRESENT;
+        for(size_t j=0; j<1024; j++){
+            page_table[j] &= ~PAGE_WRITABLE;
+            child_page_table[j] = page_table[j];
+        }
     }
 
-    for(size_t i=768; i<1023; i++){
-        child_pd[i] = virtual_page_directory[i];
-    }
     // TODO should unmap the child_pd from the parent's pd
 
     uint32_t child_pd_phys_addr = (uint32_t)get_physaddr((void *)child_pd);
-    child_pd[1023] = child_pd_phys_addr | PAGE_WRITABLE | PAGE_PRESENT;
+    child_pd[1023] = child_pd_phys_addr | PAGE_USER | PAGE_WRITABLE | PAGE_PRESENT;
     // should be in kernel heap
-    task_struct *child_task = mmap(NULL, PAGE_SIZE, PAGE_WRITABLE, MAP_ANONYMOUS, -1, 0);
+    task_struct *child_task = mmap((void *)kernel_heap_alloc, PAGE_SIZE, PAGE_WRITABLE, MAP_ANONYMOUS, -1, 0);
+    kernel_heap_alloc += PAGE_SIZE;
     child_task->cr3 = (void *)child_pd_phys_addr;
+    child_task->esp0 = mmap((void *)kernel_heap_alloc, PAGE_SIZE, PAGE_WRITABLE, MAP_ANONYMOUS, -1, 0);
+    child_task->esp0 += PAGE_SIZE;
+    kernel_heap_alloc += PAGE_SIZE;
+    // memcpy(child_task->esp0 - PAGE_SIZE, (void *)(regs->kern_esp & ~0xfff), PAGE_SIZE);
     child_task->esp = (void *)regs->kern_esp;
-    child_task->esp0 = current_task_PCB->esp0;
     child_task->eip = (void *)regs->eip;
-
+    printf("Wtf is in normal esp?? %x\n", regs->esp);
     //should the child inherit all the file descriptors?
     child_task->fd[0] = current_task_PCB->fd[0]; 
     child_task->fd[1] = current_task_PCB->fd[1]; 
@@ -102,9 +119,11 @@ uint32_t ForkHandler(Registers *regs){
     child_task->ppid = current_task_PCB->pid;
     child_task->pid = count_process_id++;
     child_task->state = TASK_RUNNING;
-    //switch to the child process
+    //add child process to the runqueue
     add_process_to_schedule(child_task);
+    //switch to the child process
     afterFork(child_task);
+    //the parent should resume from here
     return (child_task->pid == current_task_PCB->pid) ? 0 : child_task->pid;
 }
 
@@ -186,15 +205,15 @@ uint32_t ExecveHandler(Registers *regs){
     debugIsExecve = 1;
 
     // free all the page frames allocated in this process' address space
-    for(size_t i=0; i<current_task_PCB->number_of_mappings; i++){
-        if(!strcmp(current_task_PCB->vmmap[i].path, "stack"))
-            continue;
-        void *start_addr = (void *)current_task_PCB->vmmap[i].start_addr;
-        size_t page_frames = (current_task_PCB->vmmap[i].end_addr - current_task_PCB->vmmap[i].start_addr) / PAGE_SIZE;
-        for(size_t j=0; j<page_frames; j++){
-            free(get_physaddr(start_addr + PAGE_SIZE * j));
-        }
-    }
+    // for(size_t i=0; i<current_task_PCB->number_of_mappings; i++){
+    //     if(!strcmp(current_task_PCB->vmmap[i].path, "stack"))
+    //         continue;
+    //     void *start_addr = (void *)current_task_PCB->vmmap[i].start_addr;
+    //     size_t page_frames = (current_task_PCB->vmmap[i].end_addr - current_task_PCB->vmmap[i].start_addr) / PAGE_SIZE;
+    //     for(size_t j=0; j<page_frames; j++){
+    //         free(get_physaddr(start_addr + PAGE_SIZE * j));
+    //     }
+    // }
     // current_task_PCB->vmmap[0].start_addr = 
     //should not return
     change_to_new_executable(current_task_PCB, disk, path);
@@ -280,7 +299,7 @@ uint32_t MMAPHandler(Registers *regs){
     int flags = (int)regs->esi;
     int fd = (int)regs->edi;
     uint32_t offset = regs->ebp;
-   
+    if(verbose)
         printf("mmap @ %x + %x with prot %x flags %x fd %x offset %x\n",
                 virtual_addr,
                 size,
@@ -302,7 +321,8 @@ uint32_t MProtectHandler(Registers *regs){
 }
 
 uint32_t ArchPRCTLHandler(Registers *regs){
-    return change_gs_base(regs->ebx);
+    current_task_PCB->gs_base = regs->ebx;
+    return change_gs_base(current_task_PCB->gs_base);
 }
 
 uint32_t UnameHandler(Registers *regs){

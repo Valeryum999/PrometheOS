@@ -48,14 +48,26 @@ static const char* const g_Exceptions[] = {
 void PageFaultHandler(Registers *regs){
     uint32_t cr2;
     asm volatile("mov %%cr2, %0" : "=r"(cr2));
-    printf("Page Fault addr @ %x",cr2);
+    printf("Page Fault addr @ %x error %x\n",cr2, regs->error);
+    if(regs->error & PAGE_PRESENT){
+        if(regs->error & PAGE_WRITABLE){
+            void *page = (void *)(cr2 & ~0xfff);
+            //remap the current page to another known location
+            remap_page(page, (void *)0xbff00000);
+            //map a new physical address to copy the previous contents into
+            mmap(page, PAGE_SIZE, PAGE_USER | PAGE_WRITABLE, MAP_ANONYMOUS, -1, 0);
+            //copy the whole page memory contents in the new writable page
+            memcpy(page, (void *)0xbff00000, PAGE_SIZE);
+            return;
+        }
+    }
     printf("  eax=%x ebx=%x ecx=%x edx=%x esi=%x edi=%x\n",
         regs->eax, regs->ebx, regs->ecx, regs->edx, regs->esi, regs->edi);
-    printf("  esp=%x kern_esp=%x ebp=%x eip=%x eflags=%x cs=%x ds=%x ss=%x\n",
-        regs->esp, regs->kern_esp, regs->ebp, regs->eip, regs->eflags, regs->cs, regs->ds, regs->ss);
+    printf("  esp=%x kern_esp=%x ebp=%x eip=%x eflags=%x\n",
+        regs->esp, regs->kern_esp, regs->ebp, regs->eip, regs->eflags);
+    printf("cs=%x ds=%x ss=%x gs=%x\n", regs->cs, regs->ds, regs->ss, regs->gs);
     printf("  interrupt=%x errorcode=%x\n", regs->interrupt, regs->error);
     printf("KERNEL PANIC!\n");
-    printf("how the fuck do i debug this\n");
     kpanic();
 }
 
@@ -76,9 +88,9 @@ void ISR_Handler(Registers* regs){
         printf("Unhandled exception %d %s\n", regs->interrupt, g_Exceptions[regs->interrupt]);
         printf("  eax=%x ebx=%x ecx=%x edx=%x esi=%x edi=%x\n",
             regs->eax, regs->ebx, regs->ecx, regs->edx, regs->esi, regs->edi);
-
-        printf("  esp=%x ebp=%x eip=%x eflags=%x cs=%x ds=%x ss=%x\n",
-            regs->esp, regs->ebp, regs->eip, regs->eflags, regs->cs, regs->ds, regs->ss);
+        printf("  esp=%x kern_esp=%x ebp=%x eip=%x eflags=%x\n",
+            regs->esp, regs->kern_esp, regs->ebp, regs->eip, regs->eflags);
+        printf("cs=%x ds=%x ss=%x gs=%x\n", regs->cs, regs->ds, regs->ss, regs->gs);
         printf("  interrupt=%x errorcode=%x\n", regs->interrupt, regs->error);
         printf("KERNEL PANIC!\n");
         kpanic();

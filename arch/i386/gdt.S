@@ -30,13 +30,19 @@ reload_GDT:
     mov 12(%esp), %ax
     ljmp $0x08, $.reload_CS_GS
 .reload_CS_GS:
-    mov 16(%esp), %ax
-    mov %ax, %ds
-    mov %ax, %es
-    mov %ax, %fs
-    mov %ax, %ss
-
     mov 20(%esp), %ax
+    mov %ax, %gs
+
+    mov %ebp, %esp
+    pop %ebp
+    ret
+
+.global reload_GS
+reload_GS:
+    push %ebp
+    mov %esp, %ebp
+
+    mov 8(%esp), %eax
     mov %ax, %gs
 
     mov %ebp, %esp

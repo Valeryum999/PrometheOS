@@ -20,6 +20,7 @@
 extern uint32_t end_lowtext;
 extern uint32_t end_kernel;
 extern void kpanic();
+extern void reload_GDT_for_TSS();
 
 #define DISK_HEADER 0x6d903ceb
 
@@ -32,13 +33,14 @@ void timer(Registers *regs){
 extern stack_t stack;
 
 void kernel_main(void) {
-	terminal_initialize();
 	init_GDT();
 	init_IDT();
 	init_ISR();
 	init_stack();
 	void *TSS_stack = mmap((void *)0xcfff8000, 0x8000, PAGE_WRITABLE, MAP_ANONYMOUS, -1, 0);
 	load_TSS((uint32_t)(TSS_stack + 0x8000));
+	terminal_initialize();
+	reload_GDT_for_TSS();
 	i686_IRQ_Initialize();
 	i686_IRQ_RegisterHandler(0, timer);
 	init_keyboard();
@@ -67,12 +69,11 @@ void kernel_main(void) {
 	task_struct idle_task;
 	initialize_multiprocessing(&idle_task);
 	add_process_to_schedule(processTestMlibc);
-	// add_memory_mapping(processTestMlibc, 0, PROT_READ|PROT_WRITE, 0x100000, 0, "[VGA + FAT]");
 	load_process(processTestMlibc, disk, "/usr/bin/fork");
 	// add_process_to_schedule(processTestMlibc2);
 	schedule();
 	print_memory_mappings(processTestMlibc);
-	// schedule();
+	schedule();
 	// i686_IRQ_RegisterHandler(0, schedule);
 	printf("stack top is @ %x\n", stack.top);
 	while(1){

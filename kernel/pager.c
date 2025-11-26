@@ -7,6 +7,7 @@ uint32_t page_tables[1024][1024] __attribute__((aligned(4096), section(".lowdata
 // uint32_t second_kernel_page_table[1024] __attribute__((aligned(4096), section(".lowdata")));
 uint32_t *virtual_page_directory = (uint32_t *) 0xfffff000;
 uint32_t random_alloc = 0xb000000;
+uint32_t kernel_heap_alloc = 0xc2000000;
 
 extern uint32_t end_lowtext;
 extern uint32_t end_kernel;
@@ -24,10 +25,8 @@ __attribute__((section(".lowtext"))) void init_paging(void){
     //alloc kernel page tables
     for(int i=768; i<1022; i++){
         int page_directory_increment = PAGE_DIRECTORY_SIZE * (i-768); 
-        uint32_t *kernel_page_table = (uint32_t *)(start_frame + i * PAGE_SIZE);
-        //TODO: stop allocating page tables when all the kernel is mapped (for now it maps even beyond until the end of the pd)
         for(int j = 0; j < 1024; j++){
-            kernel_page_table[j] = (KERNEL_LOW_BASE + page_directory_increment + j * PAGE_SIZE) | PAGE_USER | PAGE_WRITABLE | PAGE_PRESENT;
+            page_tables[i][j] = (KERNEL_LOW_BASE + page_directory_increment + j * PAGE_SIZE) | PAGE_USER | PAGE_WRITABLE | PAGE_PRESENT;
         }
     }
     
@@ -95,7 +94,7 @@ void *mmap(void *virtualaddr, size_t size, int prot, int flags, int fd, uint32_t
         }
         
         void *physaddr = kalloc_page_frame();
-        // momentairily forcing RW only (no user)
+        // momentairily forcing RW only
         page_table[page_table_index] = ((uint32_t)physaddr) | PAGE_USER | PAGE_WRITABLE | PAGE_PRESENT;
 
         //flush TLB
@@ -107,15 +106,31 @@ void *mmap(void *virtualaddr, size_t size, int prot, int flags, int fd, uint32_t
     return virtualaddr;
 }
 
+void remap_page(void *page, void *new_addr){
+    uint32_t page_directory_index = (uint32_t)(page) >> 22;
+    uint32_t page_table_index = (uint32_t)(page) >> 12 & 0x3FF;
+    uint32_t *page_table = (uint32_t *)(0xffc00000 + page_directory_index*PAGE_SIZE);
+
+    uint32_t copy = page_table[page_table_index];
+    page_table[page_table_index] = PAGE_USER | PAGE_WRITABLE | PAGE_PRESENT;
+    asm volatile("invlpg (%0)" ::"r" (page) : "memory");
+
+    page_directory_index = (uint32_t)(new_addr) >> 22;
+    page_table_index = (uint32_t)(new_addr) >> 12 & 0x3FF;
+    page_table = (uint32_t *)(0xffc00000 + page_directory_index*PAGE_SIZE);
+    page_table[page_table_index] = copy;
+    asm volatile("invlpg (%0)" ::"r" (new_addr) : "memory");
+}
+
 int mprotect(void *start, size_t size, uint32_t prot){
     size_t numPages = size / PAGE_SIZE + (((size % PAGE_SIZE) > 0) ? 1 : 0);
-    for(size_t i=0; i<numPages; i++){
-        uint32_t page_directory_index = (uint32_t)(start + PAGE_SIZE * i) >> 22;
-        uint32_t page_table_index = (uint32_t)(start + PAGE_SIZE * i) >> 12 & 0x3FF;
-        uint32_t *page_table = (uint32_t *)(0xffc00000 + page_directory_index*PAGE_SIZE);
+    // for(size_t i=0; i<numPages; i++){
+    //     uint32_t page_directory_index = (uint32_t)(start + PAGE_SIZE * i) >> 22;
+    //     uint32_t page_table_index = (uint32_t)(start + PAGE_SIZE * i) >> 12 & 0x3FF;
+    //     uint32_t *page_table = (uint32_t *)(0xffc00000 + page_directory_index*PAGE_SIZE);
 
-        page_table[page_table_index] |= prot;
-    }
+    //     page_table[page_table_index] |= prot; 04:0010│+008 0xbff07c90 —▸ 0x410e4700 —▸ 0 ◂— 0
+    // }
 
     return 0;
 }

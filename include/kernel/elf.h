@@ -302,10 +302,11 @@ typedef struct memory_mappings{
 
 typedef struct task_struct{
 	void *esp;  // initial stack pointer
-    void *esp0; // stack top
+    void *esp0; // kernel stack top
     void *cr3;  // page directory
     struct task_struct *next;  // next struct in queue
     void *eip;  // process's instruction pointer
+    uint32_t gs_base;
     int pid; //process id
     int ppid; //parent process id
     uint8_t state; //state of the process
@@ -314,7 +315,6 @@ typedef struct task_struct{
     FAT_File *fd[10];   // file descriptors
     memory_mappings vmmap[20];  //memory mappings
     uint8_t number_of_mappings;
-
 } task_struct;
 
 int ELF_parseFile(DISK *disk, FAT_File *fd, ELF32_File *file);

@@ -10,6 +10,9 @@ executeSyscall:
     mov %ds, %ax
     push %eax       # add ds to the registers
 
+    mov %gs, %ax
+    push %eax       # add gs to the registers
+
     mov $0x10, %ax  # set all segment registers to 0x10
     mov %ax, %ds
     mov %ax, %es
@@ -20,7 +23,9 @@ executeSyscall:
     call SyscallHandler
 
     add $4, %esp
-    mov %eax, 32(%esp)  # set return code
+    mov %eax, 36(%esp)  # set return code
+
+    pop %eax        # make gs go away
 
     pop %eax        #restore all segments previously stored
     mov %ax, %ds
