@@ -196,6 +196,10 @@ FAT_File *FAT_Open(DISK *disk, const char *path) {
     int isLast = 0;
     FAT_File *current = &g_Data->RootDirectory.Public;
 
+    // return root directory if asked for "."
+    if(path[0] == '.' && path[1] == '\0')
+        return current;
+
     while(*path){
         const char* delim = strchr(path, '/');
         if(delim != NULL){
@@ -216,7 +220,8 @@ FAT_File *FAT_Open(DISK *disk, const char *path) {
             current = FAT_OpenEntry(disk, &entry);
         } else {
             FAT_Close(disk, current);
-            printf("FAT: %s not found\n", name);
+            if(verbose)
+                printf("FAT: %s not found\n", name);
             return NULL;
         }
     }

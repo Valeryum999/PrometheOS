@@ -149,7 +149,7 @@ uint32_t WriteHandler(Registers *regs){
     //little workaround for the moment
     //TODO replace this with actual synchronization between /dev/fd/1 and tty
     if(fd == STDOUT || fd == STDERR)
-        printf("%s", buf);
+        terminal_write(buf, len);
     return FAT_Write(disk, current_task_PCB->fd[fd], len, buf);
 }
 
@@ -229,7 +229,7 @@ uint32_t ExecveHandler(Registers *regs){
     change_to_new_executable(current_task_PCB, disk, path);
 
     //if returns it's an error
-    return 0;
+    return -1;
 }
 
 uint32_t LSeekHandler(Registers *regs){

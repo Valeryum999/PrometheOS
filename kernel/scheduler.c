@@ -78,7 +78,6 @@ void __attribute__((naked)) task_entry(){
     eip.a_type = AT_ENTRY;
     eip.a_un.a_val = (uint32_t)current_task_PCB->eip;
     entryPosition = 0xa00000 + 0x1dae9; //TODO base addr
-    printf("Jumping in ld.so!\n");
     asm volatile(
         "xor %eax, %eax   \n\t"
         "push %eax         \n\t" 

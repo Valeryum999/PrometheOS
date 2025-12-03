@@ -109,7 +109,7 @@ void terminal_move_cursor_left(){
 		return;
 	}
 	terminal_column--;
-	// update_cursor(terminal_column, terminal_row);
+	update_cursor(terminal_column, terminal_row);
 }
 
 void terminal_move_cursor_right(){
@@ -118,7 +118,7 @@ void terminal_move_cursor_right(){
 		return;
 	}
 	terminal_column++;
-	// update_cursor(terminal_column, terminal_row);
+	update_cursor(terminal_column, terminal_row);
 }
 
 void terminal_putchar(char c) {
@@ -158,7 +158,7 @@ void terminal_putchar(char c) {
 void terminal_write(const char* data, size_t size) {
 	for (size_t i = 0; i < size; i++)
 		terminal_putchar(data[i]);
-	// update_cursor(terminal_column, terminal_row);
+	update_cursor(terminal_column, terminal_row);
 }
 
 void terminal_writestring(const char* data) {
