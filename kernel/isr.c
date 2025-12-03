@@ -45,10 +45,13 @@ static const char* const g_Exceptions[] = {
     ""
 };
 
+extern int verbose;
+
 void PageFaultHandler(Registers *regs){
     uint32_t cr2;
     asm volatile("mov %%cr2, %0" : "=r"(cr2));
-    printf("Page Fault addr @ %x error %x\n",cr2, regs->error);
+    if(verbose)
+        printf("Page Fault addr @ %x error %x\n",cr2, regs->error);
     if(regs->error & PAGE_PRESENT){
         if(regs->error & PAGE_WRITABLE){
             void *page = (void *)(cr2 & ~0xfff);

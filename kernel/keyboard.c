@@ -1,4 +1,6 @@
 #include <kernel/keyboard.h>
+#include <kernel/scheduler.h>
+#include <fs/fat.h>
 
 /* The different modifier keys we support */
 #define MOD_NONE  0
@@ -134,6 +136,12 @@ unsigned char kbdse_alt[128] = {
     0,	/* All other keys are undefined */
 };
 
+extern DISK *disk;
+extern task_struct *current_task_PCB;
+
+char stdin_buffer[0x200];
+int stdin_position = 0;
+
 void keyboard_callback(Registers *regs){
 	unsigned char scancode = i686_inb(0x60);
     unsigned char parsed_char = 0;
@@ -219,4 +227,10 @@ void keyboard_callback(Registers *regs){
 
     // TODO better insert, this sucks
     printf("%c",parsed_char);
+    // char command_kekw[16] = "/usr/bin/printf";
+    stdin_buffer[stdin_position++] = parsed_char;
+    if(parsed_char == '\n' || stdin_position == 0x200){
+      FAT_Write(disk, current_task_PCB->fd[0], stdin_position, stdin_buffer);
+      stdin_position = 0;
+    }
 }

@@ -303,6 +303,10 @@ int FAT_Write(DISK *disk, FAT_File *file, uint32_t len, void *buf){
     if(fd->Public.isDirectory)
         return -1; //cannot write on a directory
     
+
+    uint32_t curr_cluster = fd->CurrentCluster;
+    uint32_t curr_sector_in_cluster = fd->CurrentSectorInCluster;
+    uint32_t position_Before = fd->Public.Position;
     uint8_t *u8Buf = (uint8_t *)buf;
     while(len > 0){
         uint32_t leftInBuffer = SECTOR_SIZE - fd->Public.Position % SECTOR_SIZE;
@@ -312,11 +316,17 @@ int FAT_Write(DISK *disk, FAT_File *file, uint32_t len, void *buf){
         fd->Public.Position = (fd->Public.Position + len) % SECTOR_SIZE;
         len -= put;
         u8Buf += put;
+        fd->Public.Size += put;
         // still have to implement next cluster allocation
         // if(put == leftInBuffer){
             
         // }
     }
+
+    //reset position
+    fd->CurrentCluster = curr_cluster;
+    fd->CurrentSectorInCluster = curr_sector_in_cluster;
+    fd->Public.Position = position_Before;
 
     FAT_writeSectors(disk, FAT_ClusterToLba(fd->CurrentCluster) + fd->CurrentSectorInCluster, 1, fd->Buffer);
 

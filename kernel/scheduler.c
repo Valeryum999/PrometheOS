@@ -11,7 +11,7 @@ uint32_t entryPosition = 0;
 
 extern ELF32_File *dynamicLoader;
 
-const char *env = "LD_SHOW_AUXV=1";
+const char *env = "LD_SHOW_AUXV=0";
 
 void initialize_multiprocessing(task_struct *idle_task_copy){
     idle_task = idle_task_copy;
@@ -77,7 +77,7 @@ void __attribute__((naked)) task_entry(){
     ph_entcount.a_un.a_val = current_task_PCB->ELFfile->header->ProgramHeaderTableEntryCount;
     eip.a_type = AT_ENTRY;
     eip.a_un.a_val = (uint32_t)current_task_PCB->eip;
-    entryPosition = 0xa00000 + 0x1dee9; //to fix base addr
+    entryPosition = 0xa00000 + 0x1dae9; //TODO base addr
     printf("Jumping in ld.so!\n");
     asm volatile(
         "xor %eax, %eax   \n\t"

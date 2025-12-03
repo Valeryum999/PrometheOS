@@ -64,7 +64,6 @@ uint32_t ExitHandler(Registers *regs){
 }
 
 uint32_t ForkHandler(Registers *regs){
-    printf("FORK: idk forking ig\n");
     // TODO ASAP all of these mappings should be in the kernel heap
     uint32_t *child_pd = mmap((void *)kernel_heap_alloc, PAGE_SIZE, PAGE_WRITABLE, MAP_ANONYMOUS, -1, 0);
     kernel_heap_alloc += PAGE_SIZE;
@@ -104,7 +103,6 @@ uint32_t ForkHandler(Registers *regs){
     // memcpy(child_task->esp0 - PAGE_SIZE, (void *)(regs->kern_esp & ~0xfff), PAGE_SIZE);
     child_task->esp = (void *)regs->kern_esp;
     child_task->eip = (void *)regs->eip;
-    printf("Wtf is in normal esp?? %x\n", regs->esp);
     //should the child inherit all the file descriptors?
     child_task->fd[0] = current_task_PCB->fd[0]; 
     child_task->fd[1] = current_task_PCB->fd[1]; 
@@ -119,6 +117,7 @@ uint32_t ForkHandler(Registers *regs){
     child_task->ppid = current_task_PCB->pid;
     child_task->pid = count_process_id++;
     child_task->state = TASK_RUNNING;
+    current_task_PCB->child_pid = child_task->pid;
     //add child process to the runqueue
     add_process_to_schedule(child_task);
     //switch to the child process
@@ -131,6 +130,15 @@ uint32_t ReadHandler(Registers *regs){
     uint32_t fd = regs->ebx;
     char *buf = (char *)regs->ecx;
     size_t len = regs->edx;
+    i686_EnableInterrupts();
+    while(fd == STDIN && current_task_PCB->fd[fd]->Size == 0){}
+    if(fd == STDIN){
+        uint32_t result = FAT_Read(disk, current_task_PCB->fd[fd], len, buf);
+        current_task_PCB->fd[fd]->Position = 0;
+        current_task_PCB->fd[fd]->Size = 0;
+        return result;
+    }
+    i686_DisableInterrupts();
     return FAT_Read(disk, current_task_PCB->fd[fd], len, buf);
 }
 
@@ -154,20 +162,21 @@ uint32_t OpenHandler(Registers *regs){
 uint32_t OpenAtHandler(Registers *regs){
     int dfd = (int)regs->ebx;
     const char *path = (const char *)regs->ecx;
-    printf("OPENAT: path is %s\n",path);
+    if(verbose)
+        printf("OPENAT: path is %s\n",path);
     FAT_File *result = FAT_Open(disk, path);
     if(result == NULL){
         return -1;
     }
     current_task_PCB->fd[current_task_PCB->openedFiles] = result;
     uint32_t fd = current_task_PCB->openedFiles++;
-    printf("OPENAT: returning fd %d\n",fd);
     return fd; //to reserve 0,1,2 for stdin, stdout, stderr
 }
 
 uint32_t CloseHandler(Registers *regs){
     uint32_t fd = regs->ebx;
-    printf("CLOSE: closing %d\n", fd);
+    if(verbose)
+        printf("CLOSE: closing %d\n", fd);
     FAT_Close(disk, current_task_PCB->fd[fd]);
     //what to do with dangling fd?
     //current_task_PCB->fd[fd] = NULL;
@@ -176,10 +185,11 @@ uint32_t CloseHandler(Registers *regs){
 
 uint32_t WaitPidHandler(Registers *regs){
     uint32_t pid = regs->ebx;
+    // printf("WAITPID syscall pid: %x\n", pid);
     current_task_PCB->state = TASK_INTERRUPTIBLE;
-    deactivate_current_running_task();
-    schedule();
-    return pid;
+    // deactivate_current_running_task();
+    // schedule();
+    return current_task_PCB->child_pid;
 }
 
 uint32_t LinkHandler(Registers *regs){
@@ -200,8 +210,8 @@ uint32_t ExecveHandler(Registers *regs){
     const char *path = (const char *)regs->ebx;
     const char **argv = (const char **)regs->ecx;
     const char **envp = (const char **)regs->edx;
-
-    printf("EXECVE: %s with argv: %x and envp: %x\n", path, argv, envp);
+    if(verbose)
+        printf("EXECVE: %s with argv: %x and envp: %x\n", path, argv, envp);
     debugIsExecve = 1;
 
     // free all the page frames allocated in this process' address space
@@ -263,7 +273,10 @@ uint32_t GetPGidHandler(Registers *regs){
 }
 
 uint32_t KillHandler(Registers *regs){
-    printf("Kill handler, for now stubbed\n");
+    uint32_t pid = regs->ebx;
+    int signal = (int)regs->ecx;
+    if(verbose) 
+        printf("Kill handler pid: %x signal: %x\n", pid, signal);
     return 0;
 }
 
@@ -340,7 +353,8 @@ uint32_t IOCTLHandler(Registers *regs){
     uint32_t fd = regs->ebx;
     uint32_t cmd = regs->ecx;
     uint32_t arg = regs->edx;
-    printf("IOCTL %s fd: %d cmd: 0x%x arg: 0x%x is a stub\n", ioctl_cmds[cmd-TCGETS], fd, cmd, arg);
+    if(verbose)
+        printf("IOCTL %s fd: %d cmd: 0x%x arg: 0x%x is a stub\n", ioctl_cmds[cmd-TCGETS], fd, cmd, arg);
     switch(cmd){
         case TCGETS:
             break;
@@ -359,12 +373,14 @@ uint32_t FCNTLHandler(Registers *regs){
     uint32_t fd = regs->ebx;
     uint32_t cmd = regs->ecx;
     uint32_t arg = regs->edx;
-    printf("FCNTL is a stub, fd: %d cmd: %x arg: %x\n", fd, cmd, arg);
+    if(verbose)
+        printf("FCNTL is a stub, fd: %d cmd: %x arg: %x\n", fd, cmd, arg);
     return 0;
 }
 
 uint32_t GenericSyscall(Registers *regs){
-    printf("Unhandled syscall: %d\n", regs->eax);
+    if(verbose)
+        printf("Unhandled syscall: %d\n", regs->eax);
     return 0;
 }
 
@@ -392,7 +408,6 @@ uint32_t SyscallHandler(Registers *regs){
         case OPEN:
             return OpenHandler(regs);
         case OPENAT:
-            printf("Syscall: OPENAT\n");
             return OpenAtHandler(regs);
         case CLOSE:
             return CloseHandler(regs);
@@ -425,15 +440,18 @@ uint32_t SyscallHandler(Registers *regs){
         case TIMES:
             return TimesHandler(regs);
         case STAT:
-            printf("Syscall: STAT\n");
+            if(verbose)
+                printf("Syscall: STAT\n");
             return StatHandler(regs);
         case FSTATAT64:
-            printf("Syscall: FSTATAT64\n");
+            if(verbose)
+                printf("Syscall: FSTATAT64\n");
             return FStatAt64Handler(regs);
         case MMAP:
             return MMAPHandler(regs);
         case MPROTECT:
-            printf("Syscall: MPROTECT\n");
+            if(verbose)
+                printf("Syscall: MPROTECT\n");
             return MProtectHandler(regs);
         case UNAME:
             printf("Syscall: UNAME\n");
@@ -442,7 +460,8 @@ uint32_t SyscallHandler(Registers *regs){
             printf("Syscall: GETPGID\n");
             return GetPGidHandler(regs);
         case ARCH_PRCTL:
-            printf("Syscall: ARCH_PRCTL\n");
+            if(verbose)
+                printf("Syscall: ARCH_PRCTL\n");
             return ArchPRCTLHandler(regs);
         default:
             return GenericSyscall(regs);

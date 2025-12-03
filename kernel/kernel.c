@@ -65,18 +65,20 @@ void kernel_main(void) {
 	disk = (DISK *) guess_disk_pos;
 	FAT_Initialize(disk);
 	printf("stack top is @ %x\n", stack.top);
-	task_struct *processTestMlibc = mmap((void *)0xd0000000, 0x1000, PAGE_WRITABLE, MAP_ANONYMOUS, -1, 0);
+	task_struct *processTestMlibc = mmap((void *)0xd0000000, PAGE_SIZE, PAGE_WRITABLE, MAP_ANONYMOUS, -1, 0);
 	task_struct idle_task;
 	initialize_multiprocessing(&idle_task);
 	add_process_to_schedule(processTestMlibc);
-	load_process(processTestMlibc, disk, "/usr/bin/fork");
+	load_process(processTestMlibc, disk, "/usr/bin/bash");
+
+	// task_struct *processTestMlibc2 = mmap((void *)0xd0010000, PAGE_SIZE, PAGE_WRITABLE, MAP_ANONYMOUS, -1, 0);
+	// load_process(processTestMlibc2, disk, "/usr/bin/printf");
 	// add_process_to_schedule(processTestMlibc2);
 	schedule();
-	print_memory_mappings(processTestMlibc);
-	schedule();
+	// print_memory_mappings(processTestMlibc);
 	// i686_IRQ_RegisterHandler(0, schedule);
-	printf("stack top is @ %x\n", stack.top);
+	// printf("stack top is @ %x\n", stack.top);
 	while(1){
-		
+		schedule();
 	}
 }

@@ -309,6 +309,7 @@ typedef struct task_struct{
     uint32_t gs_base;
     int pid; //process id
     int ppid; //parent process id
+    int child_pid; // child pid (for now a process can have one single child)
     uint8_t state; //state of the process
 	ELF32_File *ELFfile; //pointer to ELFfile
     uint8_t openedFiles; //number of openedFiles
