@@ -8,10 +8,9 @@ Elf32_auxv_t ph_entsize;
 Elf32_auxv_t ph_entcount;
 Elf32_auxv_t eip;
 uint32_t entryPosition = 0;
+uint32_t *sp;
 
 extern ELF32_File *dynamicLoader;
-
-const char *env = "LD_SHOW_AUXV=0";
 
 void initialize_multiprocessing(task_struct *idle_task_copy){
     idle_task = idle_task_copy;
@@ -68,42 +67,58 @@ void wakeup(){
 
 extern void jump_usermode(void *func);
 
-void __attribute__((naked)) task_entry(){
-    phdr.a_type = AT_PHDR;
-    phdr.a_un.a_val = 0x8000000 + current_task_PCB->ELFfile->header->ProgramHeaderTablePosition;
-    ph_entsize.a_type = AT_PHENT;
-    ph_entsize.a_un.a_val = current_task_PCB->ELFfile->header->ProgramHeaderTableEntrySize;
-    ph_entcount.a_type = AT_PHNUM;
-    ph_entcount.a_un.a_val = current_task_PCB->ELFfile->header->ProgramHeaderTableEntryCount;
-    eip.a_type = AT_ENTRY;
-    eip.a_un.a_val = (uint32_t)current_task_PCB->eip;
+void task_entry(const char **argv, const char **envp){
+    // switch to kernel stack
+    sp = current_task_PCB->esp - 0x100;
+
+    int argc = 0;
+    if(argv){
+        while(argv[argc])
+            argc++;
+    }
+
+    int envc = 0;
+    if(envp){
+        while(envp[envc]){
+            envc++;
+        }
+    }
+
+    ELFHeader *eh = current_task_PCB->ELFfile->header;
+    Elf32_auxv_t auxv[5] = {
+        { AT_PHDR,  { 0x8000000 + eh->ProgramHeaderTablePosition } },
+        { AT_PHENT, { eh->ProgramHeaderTableEntrySize } },
+        { AT_PHNUM, { eh->ProgramHeaderTableEntryCount } },
+        { AT_ENTRY, { (uint32_t)current_task_PCB->eip } },
+        { AT_NULL,  { 0 } },
+    };
+
+    int auxc = sizeof(auxv) / sizeof(auxv[0]);
+
+    // push auxv
+    for (int i = auxc - 1; i >= 0; i--) {
+        *(--sp) = auxv[i].a_un.a_val;
+        *(--sp) = auxv[i].a_type;
+    }
+
+    // push envp
+    *(--sp) = 0;
+    for (int i = envc - 1; i >= 0; i--) {
+        *(--sp) = (uint32_t)envp[i];
+    }
+
+    // push argv
+    *(--sp) = 0;
+    for (int i = argc - 1; i >= 0; i--) {
+        *(--sp) = (uint32_t)argv[i];
+    }
+
+    // push argc
+    *(--sp) = argc;
+
     entryPosition = 0xa00000 + 0x1dae9; //TODO base addr
     asm volatile(
-        "xor %eax, %eax   \n\t"
-        "push %eax         \n\t" 
-        "push %eax         \n\t" //"end" of AUXV
-        "lea phdr, %eax  \n\t"
-        "push 4(%eax)          \n\t" // push value
-        "push (%eax)        \n\t"    // push AT_PHDR
-        "lea ph_entsize, %eax  \n\t"
-        "push 4(%eax)          \n\t" // push value
-        "push (%eax)        \n\t"    // push AT_PHENT
-        "lea ph_entcount, %eax  \n\t"
-        "push 4(%eax)          \n\t" // push value
-        "push (%eax)        \n\t"    // push AT_PHNUM
-        "lea eip, %eax  \n\t"
-        "push 4(%eax)          \n\t" // push value
-        "push (%eax)        \n\t"    // push AT_ENTRY
-        "xor %eax, %eax   \n\t"
-        "push %eax         \n\t" //"end" of env
-        "mov env, %eax  \n\t"
-        "push %eax         \n\t" //env
-        "xor %eax, %eax    \n\t"
-        "push %eax         \n\t" //"end" of argv
-        "push %eax         \n\t" //argc
-        
-        // "mov current_task_PCB, %ebx  \n\t" //eip
-        // "mov 16(%ebx), %eax \n\t" // load eip (first field) into eax
+        "mov sp, %esp \n\t"
         "mov entryPosition, %eax \n\t" //PH_INTERP entry point
         "push %eax         \n\t" //jmp to entry point
         "lea jump_usermode, %eax \n\t"
@@ -112,4 +127,6 @@ void __attribute__((naked)) task_entry(){
         "xor %eax, %eax   \n\t"
         "ret"
     );
+
+    __builtin_unreachable();
 }

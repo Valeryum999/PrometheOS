@@ -50,8 +50,6 @@ extern int verbose;
 void PageFaultHandler(Registers *regs){
     uint32_t cr2;
     asm volatile("mov %%cr2, %0" : "=r"(cr2));
-    if(verbose)
-        printf("Page Fault addr @ %x error %x\n",cr2, regs->error);
     if(regs->error & PAGE_PRESENT){
         if(regs->error & PAGE_WRITABLE){
             void *page = (void *)(cr2 & ~0xfff);
@@ -64,6 +62,7 @@ void PageFaultHandler(Registers *regs){
             return;
         }
     }
+    printf("Page Fault addr @ %x error %x\n",cr2, regs->error);
     printf("  eax=%x ebx=%x ecx=%x edx=%x esi=%x edi=%x\n",
         regs->eax, regs->ebx, regs->ecx, regs->edx, regs->esi, regs->edi);
     printf("  esp=%x kern_esp=%x ebp=%x eip=%x eflags=%x\n",

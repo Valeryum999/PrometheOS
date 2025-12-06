@@ -57,7 +57,7 @@ unsigned char kbdmix[128] =
 };
 
 unsigned char kbdse_shift[128] = {
-    0,  27, '!', '\"', '#', 0 /* shift+4 */, '%', '&', '/', '(',	/* 9 */
+    0,  27, '!', '\"', '#', '$' /* shift+4 */, '%', '&', '/', '(',	/* 9 */
   ')', '=', '?', '`', '\b',	/* Backspace */
   '\t',			/* Tab */
 
@@ -227,7 +227,6 @@ void keyboard_callback(Registers *regs){
 
     // TODO better insert, this sucks
     printf("%c",parsed_char);
-    // char command_kekw[16] = "/usr/bin/printf";
     stdin_buffer[stdin_position++] = parsed_char;
     if(parsed_char == '\n' || stdin_position == 0x200){
       FAT_Write(disk, current_task_PCB->fd[0], stdin_position, stdin_buffer);

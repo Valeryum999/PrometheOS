@@ -21,7 +21,7 @@
 #define TASK_NEW                0x0800
 
 void write_cr3(uint32_t page_directory);
-int load_process(task_struct *process, DISK *disk, const char* path);
-int change_to_new_executable(task_struct *process, DISK *disk, const char *path);
+int load_process(task_struct *process, DISK *disk, const char* path, const char **argv, const char **envp);
+int change_to_new_executable(task_struct *process, DISK *disk, const char *path, const char **argv, const char **envp);
 
 #endif

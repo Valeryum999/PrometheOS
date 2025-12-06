@@ -116,6 +116,7 @@ const char syscall_strings[92][9] = {
 #define LINK 9
 #define UNLINK 10
 #define EXECVE 11
+#define CHDIR 12
 #define LSEEK 19
 #define GETPID 20
 #define GETUID 24
@@ -133,6 +134,7 @@ const char syscall_strings[92][9] = {
 #define MPROTECT 125
 #define UNAME 122
 #define GETPGID 132
+#define GETDENTS 141
 #define OPENAT 295
 #define FSTATAT64 300
 #define ARCH_PRCTL 384

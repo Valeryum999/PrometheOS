@@ -226,7 +226,7 @@ uint32_t ExecveHandler(Registers *regs){
     // }
     // current_task_PCB->vmmap[0].start_addr = 
     //should not return
-    change_to_new_executable(current_task_PCB, disk, path);
+    change_to_new_executable(current_task_PCB, disk, path, argv, envp);
 
     //if returns it's an error
     return -1;
@@ -291,18 +291,31 @@ uint32_t StatHandler(Registers *regs){
     return 0;
 }
 
+#define AT_EMPTY_PATH 0x1000
+
 uint32_t FStatAt64Handler(Registers *regs){
     uint32_t     dfd     = regs->ebx;
     const char*  path    = (const char*)regs->ecx;
     struct stat* statbuf = (struct stat*)regs->edx;
     int          flags   = (int)regs->esi;
 
-    FAT_File *fd = FAT_Open(disk, path);
+    FAT_File *fd;
+
+    if(flags & AT_EMPTY_PATH){
+        fd = current_task_PCB->fd[dfd];
+    } else {
+        fd = FAT_Open(disk, path);
+    }
 
     if(fd == NULL)
         return -1;
 
-    return FAT_StatAt(disk, path, flags, statbuf);
+    uint32_t result = FAT_StatAt(disk, fd, flags, statbuf);
+
+    if(!(flags & AT_EMPTY_PATH))
+        FAT_Close(disk, fd);
+
+    return result;
 }
 
 uint32_t MMAPHandler(Registers *regs){
@@ -378,6 +391,32 @@ uint32_t FCNTLHandler(Registers *regs){
     return 0;
 }
 
+uint32_t ReadDirEntsHandler(Registers *regs){
+    uint32_t dfd = regs->ebx;
+    linux_dirent *dirEntries = (linux_dirent *)regs->ecx;
+    uint32_t count = regs->edx;
+    printf("SYSCALL READDIRENTS fd: %x dirent: %x count: %x\n", dfd, dirEntries, count);
+
+    //TODO fix
+    // uint32_t bytes_read = 0;
+    // FAT_DirectoryEntry dirEntry;
+    // size_t i = 0;
+    // FAT_File *fd = current_task_PCB->fd[dfd];
+
+    // while(bytes_read < count && FAT_ReadEntry(disk, fd, &dirEntry) && dirEntry.Name[0]){
+    //     dirEntries[i].d_ino = 1;
+    //     dirEntries[i].d_off = 0x20;
+    //     dirEntries[i].d_type = DT_REG;
+    //     dirEntries[i].d_reclen = sizeof(linux_dirent);
+    //     dirEntry.Name[11] = '\0';
+    //     strcpy(dirEntries[i].d_name, (const char *)dirEntry.Name);
+    //     i++;
+    //     bytes_read += sizeof(linux_dirent);
+    // }
+
+    return 0;//bytes_read;
+}
+
 uint32_t GenericSyscall(Registers *regs){
     if(verbose)
         printf("Unhandled syscall: %d\n", regs->eax);
@@ -439,6 +478,8 @@ uint32_t SyscallHandler(Registers *regs){
             return KillHandler(regs);
         case TIMES:
             return TimesHandler(regs);
+        case GETDENTS:
+            return ReadDirEntsHandler(regs);
         case STAT:
             if(verbose)
                 printf("Syscall: STAT\n");

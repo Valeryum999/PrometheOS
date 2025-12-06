@@ -102,7 +102,7 @@ void FAT_Initialize(DISK *disk);
 void FAT_printBootSector();
 FAT_File *FAT_OpenEntry(DISK *disk, FAT_DirectoryEntry *entry);
 FAT_File *FAT_Open(DISK *disk, const char *path);
-int FAT_StatAt(DISK *disk, const char* path, int flags, struct stat* statbuf);
+int FAT_StatAt(DISK *disk, FAT_File *file, int flags, struct stat* statbuf);
 void FAT_filename_to_FATfilename(const char *name, char *fatName);
 void FAT_NextSector(DISK *disk, FAT_FileData *fd);
 int FAT_findFile(DISK *disk, FAT_File *file, const char *name, FAT_DirectoryEntry *entryOut);

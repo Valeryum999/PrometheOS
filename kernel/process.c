@@ -87,46 +87,60 @@ int load_process_ELF(task_struct *process, DISK *disk, const char* path, int isE
     return 0;
 }
 
-void map_stack(task_struct *process){
+void map_stack(task_struct *process, const char **argv, const char **envp){
     void *stack_addr = mmap((void *)0xbff00000, 8*PAGE_SIZE, PAGE_WRITABLE, MAP_ANONYMOUS, -1, 0);
     void *kstack_addr = mmap((void *)kernel_heap_alloc, PAGE_SIZE, PAGE_WRITABLE, MAP_ANONYMOUS, -1, 0);
     kernel_heap_alloc += PAGE_SIZE;
+    process->esp = stack_addr + 8*PAGE_SIZE;
+    uint32_t *buffer = (uint32_t *)process->esp - 0x10;
+    buffer--;
+    *(buffer--) = (uint32_t)argv;
+    *(buffer--) = (uint32_t)envp;
+    *(buffer--) = (uint32_t)task_entry;
+    *(buffer--) = 0;
+    *(buffer--) = 0;
+    *(buffer--) = 0;
+    *(buffer)   = 0;
+    process->esp = buffer;
     process->esp0 = kstack_addr + PAGE_SIZE;
-    process->esp = stack_addr + 0xfcc + 7*PAGE_SIZE;
-    uint32_t *buffer = (uint32_t *)(stack_addr + 0xfdc + 7*PAGE_SIZE);
-    *buffer = (uint32_t)task_entry;
     add_memory_mapping(process, (uint32_t)stack_addr, PROT_READ | PROT_WRITE, 8*PAGE_SIZE, 0, "stack");
     add_memory_mapping(process, (uint32_t)kstack_addr, PROT_READ | PROT_WRITE, PAGE_SIZE, 0, "kstack");
 }
 
-void reset_stack(task_struct *process){
+void reset_stack(task_struct *process, const char **argv, const char **envp){
     process->esp = (void *)0xbff00000 + 7*PAGE_SIZE + 0xfcc;
-    uint32_t *buffer = (uint32_t *)(process->esp + 0x10);
-    *buffer = (uint32_t)task_entry;
+    uint32_t *sp = (uint32_t *)(process->esp);
+    sp--;
+    *(sp--) = (uint32_t)argv;
+    *(sp--) = (uint32_t)envp;
+    *(sp) = (uint32_t)task_entry;
+    process->esp = sp;
 }
 
 #define NO_EXECVE 0
 #define IS_EXECVE 1
 
-int change_to_new_executable(task_struct *process, DISK *disk, const char *path){
+int change_to_new_executable(task_struct *process, DISK *disk, const char *path, const char **argv, const char **envp){
     process->number_of_mappings = 0;
     if(load_process_ELF(process, disk, path, NO_EXECVE) != 0){
         printf("Failed to load ELF file!\n");
         return -1;
     }
-    reset_stack(process);
+    reset_stack(process, argv, envp);
+    // mov sp to task's kernel stack and ret to task_entry
     asm volatile(
         "mov %0, %%esp \n\t" 
-        "pop %%ebp \n\t"
-        "pop %%edi \n\t"
-        "pop %%esi \n\t"
-        "pop %%ebx \n\t"
+        "xor %%ebp, %%ebp \n\t"
+        "xor %%edi, %%edi \n\t"
+        "xor %%esi, %%esi \n\t"
+        "xor %%ebx, %%ebx \n\t"
         "ret"
         :: "r"(process->esp));
+
     return 0;
 }
 
-int load_process(task_struct *process, DISK *disk, const char* path){
+int load_process(task_struct *process, DISK *disk, const char* path, const char **argv, const char **envp){
     void *process_pd = map_page_directory_kernel();
     write_cr3((uint32_t)process_pd);
     process->cr3 = process_pd; 
@@ -159,7 +173,7 @@ int load_process(task_struct *process, DISK *disk, const char* path){
         return -1;
     }
 
-    map_stack(process);
+    map_stack(process, argv, envp);
 
     write_cr3(kernel_page_directory & ~0xfff);
     

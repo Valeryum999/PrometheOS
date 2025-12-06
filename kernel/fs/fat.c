@@ -229,8 +229,7 @@ FAT_File *FAT_Open(DISK *disk, const char *path) {
     return current;
 }
 
-int FAT_StatAt(DISK *disk, const char* path, int flags, struct stat* statbuf){
-    FAT_File *file = FAT_Open(disk, path);
+int FAT_StatAt(DISK *disk, FAT_File *file, int flags, struct stat* statbuf){
     if(file == NULL)
         return -1;
 
@@ -251,7 +250,6 @@ int FAT_StatAt(DISK *disk, const char* path, int flags, struct stat* statbuf){
     statbuf->__st_ctim32.tv_nsec = 0;
     statbuf->st_ino = 1;
 
-    FAT_Close(disk, file);
     return 0;
 }
 

@@ -45,6 +45,7 @@ void kernel_main(void) {
 	i686_IRQ_RegisterHandler(0, timer);
 	init_keyboard();
 	printf("Hello World!\n");
+	printf("End of disk is @ %x\n", get_physaddr((void *)0xc1ea5b80));
 	printf("End kernel is @ %x\n", &end_kernel);
 	uint32_t end_kernel_uint = (uint32_t)&end_kernel;
 	end_kernel_uint &= ~0xfff;
@@ -69,7 +70,7 @@ void kernel_main(void) {
 	task_struct idle_task;
 	initialize_multiprocessing(&idle_task);
 	add_process_to_schedule(processTestMlibc);
-	load_process(processTestMlibc, disk, "/usr/bin/bash");
+	load_process(processTestMlibc, disk, "/usr/bin/bash", NULL, NULL);
 
 	// task_struct *processTestMlibc2 = mmap((void *)0xd0010000, PAGE_SIZE, PAGE_WRITABLE, MAP_ANONYMOUS, -1, 0);
 	// load_process(processTestMlibc2, disk, "/usr/bin/printf");
