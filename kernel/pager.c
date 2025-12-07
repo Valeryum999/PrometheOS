@@ -135,13 +135,19 @@ int mprotect(void *start, size_t size, uint32_t prot){
     return 0;
 }
 
-void unmap(void *virtualaddr){
-    void *phys_addr = get_physaddr(virtualaddr);
-    uint32_t page_directory_index = (uint32_t)virtualaddr >> 22;
-    uint32_t page_table_index = (uint32_t)virtualaddr >> 12 & 0x3FF;
-    uint32_t *page_table = (uint32_t *)(0xffc00000 + page_directory_index*PAGE_SIZE);
+int munmap(void *virtualaddr, uint32_t size){
+    size_t numPages = size / PAGE_SIZE + (((size % PAGE_SIZE) > 0) ? 1 : 0);
+    for (size_t i = 0; i < numPages; i++){
+        void *curr_addr = virtualaddr + i * PAGE_SIZE;
+        void *phys_addr = get_physaddr(curr_addr);
+        uint32_t page_directory_index = (uint32_t)curr_addr >> 22;
+        uint32_t page_table_index = (uint32_t)curr_addr >> 12 & 0x3FF;
+        uint32_t *page_table = (uint32_t *)(0xffc00000 + page_directory_index*PAGE_SIZE);
+        
+        page_table[page_table_index] = 0;
+        asm volatile("invlpg (%0)" ::"r" (curr_addr) : "memory");
     
-    page_table[page_table_index] = 0;
-
-    free(phys_addr);
+        free(phys_addr);
+    }
+    return 0;
 }

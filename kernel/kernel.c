@@ -25,6 +25,7 @@ extern void reload_GDT_for_TSS();
 #define DISK_HEADER 0x6d903ceb
 
 DISK *disk;
+void *end_of_disk;
 
 void timer(Registers *regs){
 
@@ -45,8 +46,7 @@ void kernel_main(void) {
 	i686_IRQ_RegisterHandler(0, timer);
 	init_keyboard();
 	printf("Hello World!\n");
-	printf("End of disk is @ %x\n", get_physaddr((void *)0xc1ea5b80));
-	printf("End kernel is @ %x\n", &end_kernel);
+	printf("End kernel is @ 0x%x phys_addr: 0x%x\n", &end_kernel, get_physaddr((void *)&end_kernel));
 	uint32_t end_kernel_uint = (uint32_t)&end_kernel;
 	end_kernel_uint &= ~0xfff;
 	end_kernel_uint += PAGE_SIZE;
@@ -62,8 +62,10 @@ void kernel_main(void) {
 		kpanic();
 	}
 
-	printf("Found disk at 0x%x!\n", guess_disk_pos);
+	printf("Found disk at 0x%x phys_addr: 0x%x\n", guess_disk_pos, get_physaddr(guess_disk_pos));
 	disk = (DISK *) guess_disk_pos;
+	end_of_disk = get_physaddr((void *)(guess_disk_pos + 0x1A90000));
+	printf("End of disk is @ 0x%x phys_addr: 0x%x\n", guess_disk_pos + 0x1A90000, end_of_disk);
 	FAT_Initialize(disk);
 	printf("stack top is @ %x\n", stack.top);
 	task_struct *processTestMlibc = mmap((void *)0xd0000000, PAGE_SIZE, PAGE_WRITABLE, MAP_ANONYMOUS, -1, 0);

@@ -1,17 +1,17 @@
 #ifndef _KERNEL_STAT_H
 #define _KERNEL_STAT_H
 
-typedef long unsigned int   dev_t;
-typedef unsigned int        mode_t;
-typedef unsigned long       nlink_t;
-typedef unsigned int        uid_t;
-typedef unsigned int        gid_t;
-typedef long                off_t;
-typedef long                blksize_t;
-typedef long unsigned int   blkcnt_t;
-typedef long unsigned int   ino_t;
-typedef long		        __kernel_long_t;
-typedef __kernel_long_t	    __kernel_old_time_t;
+typedef long long unsigned int  dev_t;
+typedef unsigned int        	mode_t;
+typedef unsigned long       	nlink_t;
+typedef unsigned int        	uid_t;
+typedef unsigned int        	gid_t;
+typedef long                	off_t;
+typedef long                	blksize_t;
+typedef long unsigned int   	blkcnt_t;
+typedef long long unsigned int  ino_t;
+typedef long		        	__kernel_long_t;
+typedef __kernel_long_t	    	__kernel_old_time_t;
 
 struct timespec {
 	__kernel_old_time_t	tv_sec;		/* seconds */
@@ -61,7 +61,7 @@ typedef struct linux_dirent {
 	off_t d_off; \
 	unsigned short d_reclen; \
 	unsigned char d_type; \
-	char d_name[1024];  /* Filename (null-terminated) */
+	char d_name[12];  /* Filename (null-terminated) */
                       /* length is actually (d_reclen - 2 -
                          offsetof(struct linux_dirent, d_name)) */
 } linux_dirent;

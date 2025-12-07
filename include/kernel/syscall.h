@@ -137,6 +137,7 @@ const char syscall_strings[92][9] = {
 #define GETDENTS 141
 #define OPENAT 295
 #define FSTATAT64 300
+#define FACCESAT 307
 #define ARCH_PRCTL 384
 
 #endif

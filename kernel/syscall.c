@@ -318,6 +318,22 @@ uint32_t FStatAt64Handler(Registers *regs){
     return result;
 }
 
+uint32_t FAccessAtHandler(Registers *regs){
+    uint32_t dirfd = regs->ebx;
+    const char *path = (const char *)regs->ecx;
+    int mode = (int)regs->edx;
+    
+    FAT_File *fd = FAT_Open(disk, path);
+    uint32_t result = 0;
+    if(fd == NULL){
+        result = -1;
+    } else {
+        FAT_Close(disk, fd);
+    }
+
+    return result;
+}
+
 uint32_t MMAPHandler(Registers *regs){
     void *virtual_addr = (void *)regs->ebx;
     size_t size = (size_t)regs->ecx;
@@ -335,6 +351,17 @@ uint32_t MMAPHandler(Registers *regs){
                 offset);
     uint32_t result = (uint32_t)mmap(virtual_addr, size, PAGE_WRITABLE, flags, fd, offset);
     add_memory_mapping(current_task_PCB, result, prot, size, offset, "[heap]");
+    return result;
+}
+
+uint32_t MUNMAPHandler(Registers *regs){
+    void *virtual_addr = (void *)regs->ebx;
+    size_t size = (size_t)regs->ecx;
+    if(verbose)
+        printf("munmap @ %x + %x\n",
+                virtual_addr,
+                size);
+    uint32_t result = (uint32_t)munmap(virtual_addr, size);
     return result;
 }
 
@@ -395,26 +422,26 @@ uint32_t ReadDirEntsHandler(Registers *regs){
     uint32_t dfd = regs->ebx;
     linux_dirent *dirEntries = (linux_dirent *)regs->ecx;
     uint32_t count = regs->edx;
-    printf("SYSCALL READDIRENTS fd: %x dirent: %x count: %x\n", dfd, dirEntries, count);
-
+    if(verbose)
+        printf("SYSCALL READDIRENTS fd: %x dirent: %x count: %x\n", dfd, dirEntries, count);
     //TODO fix
-    // uint32_t bytes_read = 0;
-    // FAT_DirectoryEntry dirEntry;
-    // size_t i = 0;
-    // FAT_File *fd = current_task_PCB->fd[dfd];
+    uint32_t bytes_read = 0;
+    FAT_DirectoryEntry dirEntry;
+    size_t i = 0;
+    FAT_File *fd = current_task_PCB->fd[dfd];
 
-    // while(bytes_read < count && FAT_ReadEntry(disk, fd, &dirEntry) && dirEntry.Name[0]){
-    //     dirEntries[i].d_ino = 1;
-    //     dirEntries[i].d_off = 0x20;
-    //     dirEntries[i].d_type = DT_REG;
-    //     dirEntries[i].d_reclen = sizeof(linux_dirent);
-    //     dirEntry.Name[11] = '\0';
-    //     strcpy(dirEntries[i].d_name, (const char *)dirEntry.Name);
-    //     i++;
-    //     bytes_read += sizeof(linux_dirent);
-    // }
+    while(bytes_read < count && FAT_ReadEntry(disk, fd, &dirEntry) && dirEntry.Name[0]){
+        dirEntries[i].d_ino = i;
+        dirEntries[i].d_off = i;
+        dirEntries[i].d_type = DT_REG;
+        memcpy(dirEntries[i].d_name, (const void *)dirEntry.Name, 11);
+        dirEntries[i].d_name[11] = '\0';
+        dirEntries[i].d_reclen = sizeof(linux_dirent);//offsetof(linux_dirent, d_name) + 11;
+        i++;
+        bytes_read += sizeof(linux_dirent);//offsetof(linux_dirent, d_name) + 12;
+    }
 
-    return 0;//bytes_read;
+    return bytes_read;
 }
 
 uint32_t GenericSyscall(Registers *regs){
@@ -488,8 +515,12 @@ uint32_t SyscallHandler(Registers *regs){
             if(verbose)
                 printf("Syscall: FSTATAT64\n");
             return FStatAt64Handler(regs);
+        case FACCESAT:
+            return FAccessAtHandler(regs);
         case MMAP:
             return MMAPHandler(regs);
+        case MUNMAP:
+            return MUNMAPHandler(regs);
         case MPROTECT:
             if(verbose)
                 printf("Syscall: MPROTECT\n");
