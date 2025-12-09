@@ -16,8 +16,7 @@ void init_keyboard(){
 }
 
 /* A US keymap, courtesy of Bran's tutorial */
-unsigned char kbdmix[128] =
-{
+unsigned char kbdmix[128] = {
     0,  27, '1', '2', '3', '4', '5', '6', '7', '8',	/* 9 */
   '9', '0', '+', /*'´' */0, '\b',	/* Backspace */
   '\t',			/* Tab */
@@ -142,6 +141,8 @@ extern task_struct *current_task_PCB;
 char stdin_buffer[0x200];
 int stdin_position = 0;
 
+extern stack_t stack;
+
 void keyboard_callback(Registers *regs){
 	unsigned char scancode = i686_inb(0x60);
     unsigned char parsed_char = 0;
@@ -222,6 +223,12 @@ void keyboard_callback(Registers *regs){
     } else if(scancode == 0x4d){
       // arrow left
       terminal_move_cursor_right();
+      return;
+    }
+
+    if(parsed_char == '<'){
+      // print_memory_mappings(current_task_PCB);
+      printf("Stack top is at %x\n", stack.top);
       return;
     }
 

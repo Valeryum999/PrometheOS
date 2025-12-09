@@ -9,7 +9,7 @@ SECTIONS
 
 	.lowtext : ALIGN(4096)
 	{
-		*(.multiboot)
+		*(.multiboot2)
 		*(.lowentry)
 		*(.lowtext)
 	}

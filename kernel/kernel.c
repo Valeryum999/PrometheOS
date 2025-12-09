@@ -33,18 +33,19 @@ void timer(Registers *regs){
 
 extern stack_t stack;
 
-void kernel_main(void) {
+void kernel_main(uint32_t mb2_magic, uint32_t mb_info_addr) {
 	init_GDT();
 	init_IDT();
 	init_ISR();
 	init_stack();
 	void *TSS_stack = mmap((void *)0xcfff8000, 0x8000, PAGE_WRITABLE, MAP_ANONYMOUS, -1, 0);
 	load_TSS((uint32_t)(TSS_stack + 0x8000));
-	terminal_initialize();
+	flanterm_initialize(mb2_magic, mb_info_addr);
 	reload_GDT_for_TSS();
 	i686_IRQ_Initialize();
 	i686_IRQ_RegisterHandler(0, timer);
 	init_keyboard();
+
 	printf("Hello World!\n");
 	printf("End kernel is @ 0x%x phys_addr: 0x%x\n", &end_kernel, get_physaddr((void *)&end_kernel));
 	uint32_t end_kernel_uint = (uint32_t)&end_kernel;
@@ -58,7 +59,7 @@ void kernel_main(void) {
 		count++;
 	}
 	if(count == 100){
-		printf("COuldn't find disk!\n");
+		printf("Couldn't find disk!\n");
 		kpanic();
 	}
 
@@ -73,14 +74,6 @@ void kernel_main(void) {
 	initialize_multiprocessing(&idle_task);
 	add_process_to_schedule(processTestMlibc);
 	load_process(processTestMlibc, disk, "/usr/bin/bash", NULL, NULL);
-
-	// task_struct *processTestMlibc2 = mmap((void *)0xd0010000, PAGE_SIZE, PAGE_WRITABLE, MAP_ANONYMOUS, -1, 0);
-	// load_process(processTestMlibc2, disk, "/usr/bin/printf");
-	// add_process_to_schedule(processTestMlibc2);
-	schedule();
-	// print_memory_mappings(processTestMlibc);
-	// i686_IRQ_RegisterHandler(0, schedule);
-	// printf("stack top is @ %x\n", stack.top);
 	while(1){
 		schedule();
 	}

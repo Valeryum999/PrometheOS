@@ -2,9 +2,6 @@
 
 uint32_t page_directory[1024] __attribute__((aligned(4096), section(".lowdata")));
 uint32_t page_tables[1024][1024] __attribute__((aligned(4096), section(".lowdata")));
-// uint32_t kernel_page_table[1024] __attribute__((aligned(4096), section(".lowdata")));
-//terrible workaround, to fix dynamically (maybe mmap the page tables at [endkernel-KERNEL_BASE:endkernel-KERNEL_BASE+0x400000])
-// uint32_t second_kernel_page_table[1024] __attribute__((aligned(4096), section(".lowdata")));
 uint32_t *virtual_page_directory = (uint32_t *) 0xfffff000;
 uint32_t random_alloc = 0xb000000;
 uint32_t kernel_heap_alloc = 0xc2000000;
@@ -74,6 +71,26 @@ void *get_physaddr(void *virtualaddr) {
 void malloc_page_table(uint32_t page_directory_index){
     uint32_t *page_table = (uint32_t *)kalloc_page_frame();
     virtual_page_directory[page_directory_index] = ((uint32_t)page_table) | PAGE_USER | PAGE_WRITABLE | PAGE_PRESENT;
+}
+
+void *map_raw(void *virtualaddr, void *physaddr, int size){
+    size_t numPages = size / PAGE_SIZE + (((size % PAGE_SIZE) > 0) ? 1 : 0);
+    for(size_t i=0; i<numPages; i++){
+        uint32_t page_directory_index = (uint32_t)(virtualaddr + PAGE_SIZE * i) >> 22;
+        uint32_t page_table_index = (uint32_t)(virtualaddr + PAGE_SIZE * i) >> 12 & 0x3FF;
+        uint32_t *page_table = (uint32_t *)(0xffc00000 + page_directory_index*PAGE_SIZE);
+        
+        if(!(virtual_page_directory[page_directory_index] & PAGE_PRESENT)){
+            malloc_page_table(page_directory_index);
+        }
+        // momentairily forcing RW only
+        page_table[page_table_index] = ((uint32_t)physaddr + i* PAGE_SIZE) | PAGE_USER | PAGE_WRITABLE | PAGE_PRESENT;
+
+        //flush TLB
+        asm volatile("invlpg (%0)" ::"r" (virtualaddr+i*PAGE_SIZE) : "memory");
+    }
+
+    return virtualaddr;
 }
 
 void *mmap(void *virtualaddr, size_t size, int prot, int flags, int fd, uint32_t offset) {

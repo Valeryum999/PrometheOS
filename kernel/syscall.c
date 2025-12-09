@@ -1,4 +1,5 @@
 #include <kernel/syscall.h>
+#include <flanterm.h>
 
 extern void kpanic();
 extern DISK *disk;
@@ -35,11 +36,15 @@ extern uint32_t kernel_heap_alloc;
 uint32_t ExitHandler(Registers *regs){
     printf("Exited with status code %d\n", regs->ebx);
 
+    print_memory_mappings(current_task_PCB);
+
     // free all the page frames allocated in this process' address space
     // for(size_t i=0; i<current_task_PCB->number_of_mappings; i++){
-    //     void *start_addr = get_physaddr((void *)current_task_PCB->vmmap[i].start_addr);
+    //     void *start_addr = (void *)current_task_PCB->vmmap[i].start_addr;
     //     size_t page_frames = (current_task_PCB->vmmap[i].end_addr - current_task_PCB->vmmap[i].start_addr) / PAGE_SIZE;
-    //     free_page_frames(start_addr, page_frames);
+    //     for(size_t j=0; j<page_frames; j++){
+    //         free(get_physaddr(start_addr + PAGE_SIZE * j));
+    //     }
     // }
 
     // // free curr executable ELFfile struct
@@ -109,10 +114,11 @@ uint32_t ForkHandler(Registers *regs){
     child_task->fd[2] = current_task_PCB->fd[2]; 
     child_task->openedFiles = current_task_PCB->openedFiles;
 
-    child_task->number_of_mappings = current_task_PCB->number_of_mappings;
-    for(size_t i=0; i<child_task->number_of_mappings; i++){
-        child_task->vmmap[i] = current_task_PCB->vmmap[i]; 
-    }
+    child_task->number_of_mappings = 0;
+    // child_task->number_of_mappings = current_task_PCB->number_of_mappings;
+    // for(size_t i=0; i<child_task->number_of_mappings; i++){
+    //     child_task->vmmap[i] = current_task_PCB->vmmap[i]; 
+    // }
 
     child_task->ppid = current_task_PCB->pid;
     child_task->pid = count_process_id++;
@@ -142,6 +148,8 @@ uint32_t ReadHandler(Registers *regs){
     return FAT_Read(disk, current_task_PCB->fd[fd], len, buf);
 }
 
+extern struct flanterm_context *ft_ctx;
+
 uint32_t WriteHandler(Registers *regs){
     uint32_t fd = regs->ebx;
     const char *buf = (const char *)regs->ecx;
@@ -149,7 +157,7 @@ uint32_t WriteHandler(Registers *regs){
     //little workaround for the moment
     //TODO replace this with actual synchronization between /dev/fd/1 and tty
     if(fd == STDOUT || fd == STDERR)
-        terminal_write(buf, len);
+        flanterm_write(ft_ctx, buf, len);
     return FAT_Write(disk, current_task_PCB->fd[fd], len, buf);
 }
 
@@ -170,7 +178,7 @@ uint32_t OpenAtHandler(Registers *regs){
     }
     current_task_PCB->fd[current_task_PCB->openedFiles] = result;
     uint32_t fd = current_task_PCB->openedFiles++;
-    return fd; //to reserve 0,1,2 for stdin, stdout, stderr
+    return fd;
 }
 
 uint32_t CloseHandler(Registers *regs){

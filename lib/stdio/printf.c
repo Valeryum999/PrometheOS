@@ -1,10 +1,14 @@
 #include <stdio.h>
+#include <flanterm.h>
+
+extern struct flanterm_context *ft_ctx;
 
 bool print(const char* data, size_t length) {
-	const unsigned char* bytes = (const unsigned char*) data;
-	for (size_t i = 0; i < length; i++)
-		if (putchar(bytes[i]) == EOF)
-			return false;
+	// const unsigned char* bytes = (const unsigned char*) data;
+	// for (size_t i = 0; i < length; i++)
+	// 	if (putchar(bytes[i]) == EOF)
+	// 		return false;
+	flanterm_write(ft_ctx, data, length);
 	return true;
 }
 

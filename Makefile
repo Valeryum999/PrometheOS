@@ -41,16 +41,17 @@ clean:
 	rm -rf $(DESTDIR)
 
 $(DESTDIR)/prometheos.iso: $(DESTDIR)/prometheos.kernel 
-	mkdir -p $(DESTDIR)/iso/boot/grub
+	mkdir -p $(DESTDIR)/iso/boot/limine
+	cp -v limine.conf ~/limine/limine-bios.sys ~/limine/limine-bios-cd.bin ~/limine/limine-uefi-cd.bin $(DESTDIR)/iso/boot/limine
+	mkdir -p $(DESTDIR)/iso/EFI/BOOT
+	cp -v ~/limine/BOOTIA32.EFI ~/limine/BOOTX64.EFI $(DESTDIR)/iso/EFI/BOOT
 	cp $(DESTDIR)/prometheos.kernel $(DESTDIR)/iso/boot/
 	cp ../fat12.img $(DESTDIR)/iso/boot/prometheos.initrd
-	cp grub.cfg $(DESTDIR)/iso/boot/grub/grub.cfg
-
-	$(GRUB)-mkrescue -o $(DESTDIR)/prometheos.iso $(DESTDIR)/iso
+	xorriso -as mkisofs -R -r -J -b boot/limine/limine-bios-cd.bin -no-emul-boot -boot-load-size 4 -boot-info-table -hfsplus -apm-block-size 2048 --efi-boot boot/limine/limine-uefi-cd.bin -efi-boot-part --efi-boot-image --protective-msdos-label $(DESTDIR)/iso -o $@
+	~/limine/limine bios-install $@
 
 $(DESTDIR)/prometheos.kernel: $(OBJS) $(ARCHDIR)/linker.ld sysroot/usr/lib/libk.a
 	$(LD) $(LDFLAGS) -o $@ $(OBJS) -lk
-	$(GRUB)-file --is-x86-multiboot $@
 
 sysroot/usr/lib/libk.a: $(LIBK_OBJS)
 	$(AR) rcs $@ $(LIBK_OBJS)

@@ -1,30 +1,42 @@
-# Declare constants for the multiboot header.
-.set ALIGN,    1<<0             # align loaded modules on page boundaries
-.set MEMINFO,  1<<1             # provide memory map
-.set FLAGS,    ALIGN | MEMINFO  # this is the Multiboot 'flag' field
-.set MAGIC,    0x1BADB002       # 'magic number' lets bootloader find the header
-.set CHECKSUM, -(MAGIC + FLAGS) # checksum of above, to prove we are multiboot
-
 # Declare a header as in the Multiboot Standard.
-.section .multiboot
-.align 4
-.long MAGIC
-.long FLAGS
-.long CHECKSUM
+.section .multiboot2
+.align 8
 
-# Reserve a stack for the initial thread.
-.section .bss
-.align 16
-stack_bottom:
-.skip 16384 # 16 KiB
-stack_top:
+header_start:
+	# Multiboot2 header
+    .long 0xE85250D6                    # magic
+    .long 0                             # architecture = i386
+    .long header_end - header_start     # size
+    .long -(0xE85250D6 + 0 + (header_end - header_start))
+
+    # Framebuffer request info
+    .align 8
+    .long 1
+    .long 12
+    .long 8 
+
+    # Framebuffer request for 1024x768 32bpp
+    .align 8
+    .long 5                             
+    .long 20                            
+    .long 1024
+	.long 768
+	.long 32                          
+
+    # --- End tag ---
+    .align 8
+    .long 0                             # uint32 type = END
+    .long 8                             # uint32 size = 8
+header_end:
 
 # The higher kernel entry point.
 .section .lowentry
 .global _start
 .type _start, @function
 _start:
-	add %eax, 1
+	xor %ecx, %ecx
+	add $0x7ff00, %ecx
+	mov %ecx, %esp
 	call _entry
 	call _init
 	cli

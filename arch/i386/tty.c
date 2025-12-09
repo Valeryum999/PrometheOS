@@ -5,6 +5,9 @@
 
 #include <kernel/tty.h>
 #include <kernel/cursor.h>
+#include <flanterm.h>
+#include <flanterm_backends/fb.h>
+#include <kernel/pager.h>
 
 #include "vga.h"
 
@@ -24,6 +27,54 @@ static size_t current_start_history_buffer;
 static size_t current_end_history_buffer;
 static const size_t HISTORY_BUFFER_SIZE = 0x4000;
 static const size_t HISTORY_MASK = HISTORY_BUFFER_SIZE / 2 - 1;
+
+extern void kpanic();
+
+struct flanterm_context *ft_ctx;
+
+void flanterm_initialize(uint32_t mb2_magic, uint32_t mb_info_addr){
+	if(mb2_magic != 0x36d76289){
+		return;
+	}
+	uint8_t *ptr = (uint8_t*)mb_info_addr;
+	ptr += 8; //skip total_size + reserved
+	while(1){
+		struct multiboot_tag *tag = (struct multiboot_tag*)ptr;
+
+        if (tag->type == 0) {
+            break;
+        }
+
+		if (tag->type == 8) {
+            struct multiboot_tag_framebuffer *fb =
+                (struct multiboot_tag_framebuffer*)tag;
+
+			map_raw((void *)fb->framebuffer_addr, (void *)fb->framebuffer_addr,0x2FD000);
+			ft_ctx = flanterm_fb_init(
+    		    NULL,
+    		    NULL,
+    		    (uint32_t *)fb->framebuffer_addr, fb->framebuffer_width, fb->framebuffer_height, fb->framebuffer_pitch,
+    		    fb->framebuffer_red_mask_size,   fb->framebuffer_red_field_position,
+    		    fb->framebuffer_green_mask_size, fb->framebuffer_green_field_position,
+    		    fb->framebuffer_blue_mask_size,  fb->framebuffer_blue_field_position,
+    		    NULL,
+    		    NULL, NULL,
+    		    NULL, NULL,
+    		    NULL, NULL,
+    		    NULL, 0, 0, 1,
+    		    0, 0,
+    		    0, 0
+    		);
+
+        }
+
+		ptr += (tag->size + 7) & ~7;
+	}
+
+	if(ft_ctx == NULL){
+		kpanic();
+	}
+}
 
 void terminal_initialize(void) {
 	terminal_row = 0;
