@@ -1,5 +1,7 @@
 #include <kernel/syscall.h>
 #include <flanterm.h>
+#include <kernel/io.h>
+#include <kernel/logging.h>
 
 extern void kpanic();
 extern DISK *disk;
@@ -26,7 +28,11 @@ void dump_memory(void *addr){
 }
 
 uint32_t MLibcLog(Registers *regs){
-    printf("%s\n", regs->ebx);
+    const unsigned char* bytes = (const unsigned char*) regs->ebx;
+	while(*bytes){
+		i686_outb(0xe9, *bytes);
+        bytes++;
+    }
     return 0;
 }
 
@@ -49,7 +55,7 @@ uint32_t ExitHandler(Registers *regs){
         for(int j=0; j<page_frames; j++){
             phys_addr = get_physaddr(start_addr + PAGE_SIZE * j);
             if(phys_addr == 0){
-                printf("[ \x1b[31mFATAL\x1b[39m ] pushing NULL to stack allocator 0x%x + %d : %x\n", start_addr, j, start_addr + j*PAGE_SIZE);
+                error_print("pushing NULL to stack allocator");
                 kpanic();
             }
             free(phys_addr);
@@ -259,7 +265,6 @@ uint32_t ExecveHandler(Registers *regs){
     //     for(size_t j=0; j<page_frames; j++){
     //         void *phys_addr = get_physaddr(start_addr + PAGE_SIZE * j);
     //         if(phys_addr == NULL){
-    //             printf("[ \x1b[31mFATAL\x1b[39m ] pushing NULL to stack allocator 0x%x + %d : %x\n", start_addr, j, start_addr + j*PAGE_SIZE);
     //             kpanic();
     //         }
     //         free(phys_addr);
@@ -311,7 +316,7 @@ uint32_t ExecveHandler(Registers *regs){
 uint32_t LSeekHandler(Registers *regs){
     uint32_t fd = regs->ebx;
     if(current_task_PCB->fd[fd] == NULL){
-        printf("LSEEK: fd points to a non-existent file!\n");
+        // printf("LSEEK: fd points to a non-existent file!\n");
         return -1;
     }
     uint32_t offset = regs->ecx;

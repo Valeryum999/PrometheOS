@@ -1,5 +1,6 @@
 #include <kernel/gdt.h>
 #include <string.h>
+#include <kernel/logging.h>
 
 void __attribute__((cdecl)) load_GDT(GDTDescriptor * descriptor, uint16_t codeSegment, uint16_t dataSegment);
 void __attribute__((cdecl)) reload_GDT(GDTDescriptor * descriptor, uint16_t codeSegment, uint16_t dataSegment, uint16_t gs_base);
@@ -46,6 +47,7 @@ TSS_struct TSS;
 
 void init_GDT(void){
     load_GDT(&g_GDTDescriptor,GDT_CODE_SEGMENT, GDT_DATA_SEGMENT);
+    ok_print("Loaded GDT");
 }
 
 int load_TSS(uint32_t esp0){

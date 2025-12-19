@@ -1,6 +1,7 @@
 #include <kernel/keyboard.h>
 #include <kernel/scheduler.h>
 #include <fs/fat.h>
+#include <kernel/logging.h>
 
 /* The different modifier keys we support */
 #define MOD_NONE  0
@@ -12,7 +13,8 @@
 static unsigned char mod_keys = 0;
 
 void init_keyboard(){
-    i686_IRQ_RegisterHandler(1, keyboard_callback);
+  i686_IRQ_RegisterHandler(1, keyboard_callback);
+  ok_print("Initialized keyboard driver");  
 }
 
 /* A US keymap, courtesy of Bran's tutorial */

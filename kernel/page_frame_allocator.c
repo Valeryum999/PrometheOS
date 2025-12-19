@@ -1,5 +1,6 @@
 #include <kernel/page_frame_allocator.h>
 #include <stdio.h>
+#include <kernel/logging.h>
 
 extern void kpanic();
 
@@ -32,6 +33,7 @@ void init_stack(){
         stack.arr[MAX_PAGES-1-i] = (uint8_t *)(0x9000000 + i*PAGE_SIZE);
     }
     stack.top = MAX_PAGES - 1;
+    ok_print("Initialized stack allocator");
 }
 
 void *kalloc_page_frame(){

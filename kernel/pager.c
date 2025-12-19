@@ -1,5 +1,6 @@
 #include <kernel/pager.h>
 #include <kernel/elf.h>
+#include <kernel/logging.h>
 
 uint32_t page_directory[1024] __attribute__((aligned(4096), section(".lowdata")));
 uint32_t page_tables[1024][1024] __attribute__((aligned(4096), section(".lowdata")));
@@ -181,7 +182,7 @@ int munmap(void *virtualaddr, uint32_t size){
         asm volatile("invlpg (%0)" ::"r" (curr_addr) : "memory");
     
         if(phys_addr == NULL){
-            printf("[ \x1b[31mFATAL\x1b[39m ] pushing NULL to stack allocator 0x%x + %d : %x\n", curr_addr, i, curr_addr + i*PAGE_SIZE);
+            error_print("pushing NULL to stack allocator");
             return -1;
         }
         free(phys_addr);

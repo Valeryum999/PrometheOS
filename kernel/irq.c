@@ -1,5 +1,6 @@
 #include <kernel/irq.h>
 #include <kernel/pic.h>
+#include <kernel/logging.h>
 
 #define PIC_REMAP_OFFSET 0x20
 
@@ -23,6 +24,7 @@ void i686_IRQ_Initialize(){
         ISR_RegisterHandler(PIC_REMAP_OFFSET + i, i686_IRQ_Handler);
     }
     i686_EnableInterrupts();
+    ok_print("Initialized IRQs");
 }
 void i686_IRQ_RegisterHandler(int irq, IRQHandler handler){
     g_IRQHandlers[irq] = handler;

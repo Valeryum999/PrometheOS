@@ -4,6 +4,7 @@
 #include <kernel/pager.h>
 #include <fs/fat.h>
 #include <kernel/scheduler.h>
+#include <kernel/logging.h>
 
 extern void ISR_InitializeGates();
 extern void kpanic();
@@ -80,7 +81,7 @@ void init_ISR(){
     for(int i=0; i<256; i++)
         enableIDTGate(i);
     g_ISRHandlers[14] = PageFaultHandler;
-    // g_ISRHandlers[0x80] = SyscallHandler;
+    ok_print("Loaded ISRs");
 }
 
 void ISR_Handler(Registers* regs){

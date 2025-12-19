@@ -1,4 +1,5 @@
 #include <kernel/idt.h>
+#include <kernel/logging.h>
 
 IDTEntry g_IDT[256];
 
@@ -24,4 +25,5 @@ void disableIDTGate(int interrupt){
 
 void init_IDT(){
     load_IDT(&g_IDTDescriptor);
+    ok_print("Loaded IDT");
 }

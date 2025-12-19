@@ -187,7 +187,7 @@ void FAT_FATfilename_to_filename(const char *fatName, char *name){
         return;
     
     name[pos++] = '.';
-    while(i < 11){
+    while(i < 11 && fatName[i] != ' '){
         name[pos] = tolower(fatName[i]);
         pos++;
         i++;

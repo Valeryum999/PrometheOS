@@ -8,6 +8,7 @@
 #include <flanterm.h>
 #include <flanterm_backends/fb.h>
 #include <kernel/pager.h>
+#include <kernel/logging.h>
 
 #include "vga.h"
 
@@ -74,6 +75,7 @@ void flanterm_initialize(uint32_t mb2_magic, uint32_t mb_info_addr){
 	if(ft_ctx == NULL){
 		kpanic();
 	}
+	ok_print("Initialized terminal");
 }
 
 void terminal_initialize(void) {

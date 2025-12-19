@@ -16,6 +16,7 @@
 #include <kernel/process.h>
 #include <kernel/scheduler.h>
 #include <fs/fat.h>
+#include <kernel/logging.h>
 
 extern uint32_t end_lowtext;
 extern uint32_t end_kernel;
@@ -45,26 +46,25 @@ void kernel_main(uint32_t mb2_magic, uint32_t mb_info_addr) {
 	i686_IRQ_Initialize();
 	i686_IRQ_RegisterHandler(0, timer);
 	init_keyboard();
-	printf("End kernel is @ 0x%x phys_addr: 0x%x\n", &end_kernel, get_physaddr((void *)&end_kernel));
+	// printf("End kernel is @ 0x%x phys_addr: 0x%x\n", &end_kernel, get_physaddr((void *)&end_kernel));
 	uint32_t end_kernel_uint = (uint32_t)&end_kernel;
 	end_kernel_uint &= ~0xfff;
 	end_kernel_uint += PAGE_SIZE;
 	uint32_t *guess_disk_pos = (uint32_t*)end_kernel_uint;
 	int count = 0;
-	printf("Searching initrd from 0x%x\n", guess_disk_pos);
+	// printf("Searching initrd from 0x%x\n", guess_disk_pos);
 	while(*guess_disk_pos != DISK_HEADER && count < 100){
 		guess_disk_pos += 0x400; // to add a pagesize
 		count++;
 	}
 	if(count == 100){
-		printf("Couldn't find disk!\n");
+		error_print("Couldn't find disk!\n");
 		kpanic();
 	}
 
-	printf("Found disk at 0x%x phys_addr: 0x%x\n", guess_disk_pos, get_physaddr(guess_disk_pos));
+	ok_print("Found initrd");
 	disk = (DISK *) guess_disk_pos;
 	end_of_disk = get_physaddr((void *)(guess_disk_pos + 0x1FFF000));
-	printf("End of disk is @ 0x%x phys_addr: 0x%x\n", guess_disk_pos + 0x1FFF000, end_of_disk);
 	FAT_Initialize(disk);
 	task_struct *processTestMlibc = mmap((void *)0xd0000000, PAGE_SIZE, PAGE_WRITABLE, MAP_ANONYMOUS, -1, 0);
 	task_struct idle_task;
