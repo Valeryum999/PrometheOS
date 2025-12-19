@@ -95,16 +95,17 @@ void map_stack(task_struct *process, const char **argv, const char **envp){
     add_memory_mapping(process, kernel_heap_alloc, PROT_READ|PROT_WRITE, PAGE_SIZE, 0, "[kheap]");
     kernel_heap_alloc += PAGE_SIZE;
     process->esp = stack_addr + 8*PAGE_SIZE;
-    uint32_t *buffer = (uint32_t *)process->esp - 0x10;
-    buffer--;
-    *(buffer--) = (uint32_t)argv;
-    *(buffer--) = (uint32_t)envp;
-    *(buffer--) = (uint32_t)task_entry;
-    *(buffer--) = 0;
-    *(buffer--) = 0;
-    *(buffer--) = 0;
-    *(buffer)   = 0;
-    process->esp = buffer;
+    uint32_t *sp = (uint32_t *)process->esp - 0x10;
+    sp--;
+    *(sp--) = (uint32_t)envp;
+    *(sp--) = (uint32_t)argv;
+    sp--;
+    *(sp--) = (uint32_t)task_entry;
+    *(sp--) = 0;
+    *(sp--) = 0;
+    *(sp--) = 0;
+    *(sp)   = 0;
+    process->esp = sp;
     process->esp0 = kstack_addr + PAGE_SIZE;
 }
 

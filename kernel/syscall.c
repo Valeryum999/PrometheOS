@@ -188,7 +188,7 @@ uint32_t OpenHandler(Registers *regs){
     const char *path = (const char *)regs->ebx;
     // current_task_PCB->fd[current_task_PCB->openedFiles] = FAT_Open(disk, path);
     // return current_task_PCB->openedFiles++ + 3; //to reserve 0,1,2 for stdin, stdout, stderr
-    return -1; //unimplemented
+    return -EPERM; //unimplemented
 }
 
 uint32_t OpenAtHandler(Registers *regs){
@@ -198,7 +198,7 @@ uint32_t OpenAtHandler(Registers *regs){
         printf("OPENAT: path is %s\n",path);
     FAT_File *result = FAT_Open(disk, path);
     if(result == NULL){
-        return -1;
+        return -ENOENT;
     }
     uint32_t fd = -1;
     for(size_t i=0; i<10; i++){
@@ -209,7 +209,8 @@ uint32_t OpenAtHandler(Registers *regs){
         }
     }
     if(fd == -1){
-        printf("Openat: couldn't find free fd!\n");
+        error_print("Openat: couldn't find free fd!");
+        return -EMFILE;
     }
     return fd;
 }
@@ -310,14 +311,14 @@ uint32_t ExecveHandler(Registers *regs){
     change_to_new_executable(current_task_PCB, disk, path, argv, envp);
 
     //if returns it's an error
-    return -1;
+    return -EPERM;
 }
 
 uint32_t LSeekHandler(Registers *regs){
     uint32_t fd = regs->ebx;
     if(current_task_PCB->fd[fd] == NULL){
         // printf("LSEEK: fd points to a non-existent file!\n");
-        return -1;
+        return -EBADF;
     }
     uint32_t offset = regs->ecx;
     uint32_t whence = regs->edx;
@@ -393,7 +394,7 @@ uint32_t FStatAt64Handler(Registers *regs){
     }
 
     if(fd == NULL)
-        return -1;
+        return -EBADF;
 
     uint32_t result = FAT_StatAt(disk, fd, flags, statbuf);
 
@@ -411,7 +412,7 @@ uint32_t FAccessAtHandler(Registers *regs){
     FAT_File *fd = FAT_Open(disk, path);
     uint32_t result = 0;
     if(fd == NULL){
-        result = -1;
+        return -ENOENT;
     } else {
         FAT_Close(disk, fd);
     }
@@ -426,6 +427,10 @@ uint32_t MMAPHandler(Registers *regs){
     int flags = (int)regs->esi;
     int fd = (int)regs->edi;
     uint32_t offset = regs->ebp;
+
+    if(regs->ebx & 0xfff)
+        return -EINVAL;
+
     uint32_t result = (uint32_t)map_and_zero_page(virtual_addr, size, PAGE_WRITABLE, flags, fd, offset);
     add_memory_mapping(current_task_PCB, result, prot, size, offset, "[heap]");
     if(verbose)
@@ -520,6 +525,9 @@ uint32_t ReadDirEntsHandler(Registers *regs){
     FAT_DirectoryEntry dirEntry;
     size_t i = 0;
     FAT_File *fd = current_task_PCB->fd[dfd];
+
+    if(fd == NULL)
+        return -EBADF;
 
     while(bytes_read < count && FAT_ReadEntry(disk, fd, &dirEntry) && dirEntry.Name[0]){
         dirEntries[i].d_ino = i;

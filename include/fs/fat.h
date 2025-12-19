@@ -67,6 +67,7 @@ typedef struct{
     int isDirectory;
     uint32_t Position;
     uint32_t Size;
+    FAT_DirectoryEntry Entry;
 } FAT_File;
 
 typedef struct{

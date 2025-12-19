@@ -1,5 +1,7 @@
 #include <fs/fat.h>
 #include <fs/disk.h>
+#include <kernel/errno.h>
+#include <kernel/stat.h>
 
 static FAT_Data *g_Data;
 static uint8_t *g_FAT = NULL;
@@ -172,6 +174,14 @@ void FAT_filename_to_FATfilename(const char *name, char *fatName){
 void FAT_FATfilename_to_filename(const char *fatName, char *name){
     memset(name, 0, 11);
 
+    if(fatName[0] == '.'){
+        name[0] = '.';
+        if(fatName[1] == '.'){
+            name[1] = '.'; 
+        }
+        return;
+    }
+
     int i = 0;
     int pos = 0;
     while(fatName[i] != ' '){
@@ -251,6 +261,8 @@ FAT_File *FAT_openRootDirectory(DISK *disk){
 }
 
 FAT_File *FAT_Open(DISK *disk, const char *path) {
+    FAT_DirectoryEntry entry;
+
     if(*path == '\0') return NULL;
     char name[MAX_PATH_SIZE];
     
@@ -279,7 +291,6 @@ FAT_File *FAT_Open(DISK *disk, const char *path) {
             isLast = 1;
         }
 
-        FAT_DirectoryEntry entry;
         if(FAT_findFile(disk, current, name, &entry)){
             FAT_Close(disk, current);
             current = FAT_OpenEntry(disk, &entry);
@@ -291,38 +302,79 @@ FAT_File *FAT_Open(DISK *disk, const char *path) {
         }
     }
 
+    memcpy(&current->Entry, &entry, sizeof(FAT_DirectoryEntry));
+    
     return current;
 }
 
-#define S_IFMT   0170000
-#define S_IFREG  0100000
-#define S_IFDIR  0040000
-#define S_IFLNK  0120000
-#define S_IFCHR  0020000
-#define S_IFBLK  0060000
-#define S_IFIFO  0010000
-#define S_IFSOCK 0140000
+static int is_leap(int y) {
+    return (y % 4 == 0 && y % 100 != 0) || (y % 400 == 0);
+}
+
+static const int days_before_month[12] = {
+    0,   // Jan
+    31,  // Feb
+    59,  // Mar
+    90,  // Apr
+    120, // May
+    151, // Jun
+    181, // Jul
+    212, // Aug
+    243, // Sep
+    273, // Oct
+    304, // Nov
+    334  // Dec
+};
+
+long FAT_getTimeInSeconds(uint16_t date, uint16_t time){
+    int year = (date >> 9) + 1980;
+    int month = (date >> 5) & 0xf;
+    int day = date & 0x1f;
+    int hours = time >> 11;
+    int minutes = (time >> 5) & 0x3f;
+    int seconds = (time & 0x1f) * 2;
+
+    uint64_t days = 0;
+
+    for (int y = 1970; y < year; y++) {
+        days += is_leap(y) ? 366 : 365;
+    }
+
+    // Days from Jan to start of this month
+    days += days_before_month[month - 1];
+
+    // Leap day if past Feb
+    if (month > 2 && is_leap(year)) {
+        days += 1;
+    }
+
+    // Days in current month (day starts at 1)
+    days += day - 1;
+
+    return days * 86400 + hours * 3600 + minutes * 60 + seconds;
+
+}
 
 int FAT_StatAt(DISK *disk, FAT_File *file, int flags, struct stat* statbuf){
     if(file == NULL)
-        return -1;
+        return -ENOENT;
 
     statbuf->st_dev = 1;
-    statbuf->st_mode = 7;//(file->isDirectory) ? S_IFDIR : S_IFREG;
-    statbuf->st_nlink = 0;
+    statbuf->st_mode = (file->isDirectory) ? (S_IFDIR | S_ALL) : (S_IFREG | S_ALL);
+    statbuf->st_nlink = 1;
     statbuf->st_uid = 0;
     statbuf->st_gid = 0;
     statbuf->st_rdev = 1;
     statbuf->st_size = file->Size;
     statbuf->st_blksize = SECTOR_SIZE;
     statbuf->st_blocks = 1;
-    statbuf->__st_atim32.tv_sec = 0;
-    statbuf->__st_atim32.tv_nsec = 0;
-    statbuf->__st_mtim32.tv_sec = 0;
-    statbuf->__st_mtim32.tv_nsec = 0;
-    statbuf->__st_ctim32.tv_sec = 0;
-    statbuf->__st_ctim32.tv_nsec = 0;
-    statbuf->st_ino = 1;
+    statbuf->__st_atim32.tv_sec  = 0;
+    statbuf->__st_atim32.tv_nsec = FAT_getTimeInSeconds(file->Entry.ModifiedDate, file->Entry.ModifiedTime);
+    statbuf->__st_mtim32.tv_sec  = 0;
+    statbuf->__st_mtim32.tv_nsec = FAT_getTimeInSeconds(file->Entry.ModifiedDate, file->Entry.ModifiedTime);
+    statbuf->__st_ctim32.tv_sec  = 0;
+    statbuf->__st_ctim32.tv_nsec = FAT_getTimeInSeconds(file->Entry.CreatedDate, file->Entry.CreatedDate);
+    statbuf->st_ino = file->Entry.FirstClusterLow;
 
     return 0;
 }

@@ -70,7 +70,9 @@ void kernel_main(uint32_t mb2_magic, uint32_t mb_info_addr) {
 	task_struct idle_task;
 	initialize_multiprocessing(&idle_task);
 	add_process_to_schedule(processTestMlibc);
-	load_process(processTestMlibc, disk, "/usr/bin/bash", NULL, NULL);
+	const char *env[2] = {"TERM=xterm-256color"};
+	env[1] = NULL;
+	load_process(processTestMlibc, disk, "/usr/bin/bash", NULL, env);
 	while(1){
 		schedule();
 	}
