@@ -374,7 +374,7 @@ uint32_t TimesHandler(Registers *regs){
 uint32_t StatHandler(Registers *regs){
     printf("Stat handler, for now stubbed\n");
     //FAT_File *root_dir = FAT_Open(disk, "/");
-    return 0;
+    return -1;
 }
 
 #define AT_EMPTY_PATH 0x1000
@@ -510,10 +510,6 @@ uint32_t FCNTLHandler(Registers *regs){
     return 0;
 }
 
-#define VOLUME_ID 0x08
-#define DIRECTORY 0x10
-#define ARCHIVE   0x20
-
 uint32_t ReadDirEntsHandler(Registers *regs){
     uint32_t dfd = regs->ebx;
     linux_dirent *dirEntries = (linux_dirent *)regs->ecx;
@@ -530,8 +526,8 @@ uint32_t ReadDirEntsHandler(Registers *regs){
         return -EBADF;
 
     while(bytes_read < count && FAT_ReadEntry(disk, fd, &dirEntry) && dirEntry.Name[0]){
-        dirEntries[i].d_ino = i;
-        dirEntries[i].d_off = i;
+        dirEntries[i].d_ino = dirEntry.FirstClusterLow;
+        dirEntries[i].d_off = dirEntry.FirstClusterLow;
         FAT_FATfilename_to_filename(dirEntry.Name, dirEntries[i].d_name);
         if(dirEntry.Attributes == ARCHIVE){
             dirEntries[i].d_type = DT_REG;

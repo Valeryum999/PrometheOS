@@ -100,6 +100,10 @@ typedef struct {
 #define SEEK_CUR 1
 #define SEEK_END 2
 
+#define VOLUME_ID 0x08
+#define DIRECTORY 0x10
+#define ARCHIVE   0x20
+
 void FAT_Initialize(DISK *disk);
 void FAT_printBootSector();
 void FAT_IncreaseRefcount(FAT_File *fd);

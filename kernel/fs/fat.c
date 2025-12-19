@@ -360,7 +360,17 @@ int FAT_StatAt(DISK *disk, FAT_File *file, int flags, struct stat* statbuf){
         return -ENOENT;
 
     statbuf->st_dev = 1;
-    statbuf->st_mode = (file->isDirectory) ? (S_IFDIR | S_ALL) : (S_IFREG | S_ALL);
+    switch(file->Entry.Attributes){
+        case ARCHIVE:
+            statbuf->st_mode = S_IFREG | S_ALL;
+            break;
+        case DIRECTORY:
+            statbuf->st_mode = S_IFREG | S_ALL;
+            break;
+        default:
+            statbuf->st_mode = 7;
+            break;
+    }
     statbuf->st_nlink = 1;
     statbuf->st_uid = 0;
     statbuf->st_gid = 0;
