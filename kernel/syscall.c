@@ -32,32 +32,33 @@ uint32_t MLibcLog(Registers *regs){
 
 extern void afterFork(task_struct *child);
 extern uint32_t kernel_heap_alloc;
+extern uint32_t random_alloc;
+extern stack_t stack;
 
 uint32_t ExitHandler(Registers *regs){
-    printf("Exited with status code %d\n", regs->ebx);
+    // printf("Exited with status code %d\n", regs->ebx);
 
-    print_memory_mappings(current_task_PCB);
+    void *phys_addr;
+    //print_memory_mappings(current_task_PCB);
 
     // free all the page frames allocated in this process' address space
-    // for(size_t i=0; i<current_task_PCB->number_of_mappings; i++){
-    //     void *start_addr = (void *)current_task_PCB->vmmap[i].start_addr;
-    //     size_t page_frames = (current_task_PCB->vmmap[i].end_addr - current_task_PCB->vmmap[i].start_addr) / PAGE_SIZE;
-    //     for(size_t j=0; j<page_frames; j++){
-    //         free(get_physaddr(start_addr + PAGE_SIZE * j));
-    //     }
-    // }
+    for(size_t i=0; i<current_task_PCB->number_of_mappings; i++){
+        void *start_addr = (void *)current_task_PCB->vmmap[i].start_addr;
+        size_t page_frames = (current_task_PCB->vmmap[i].end_addr - current_task_PCB->vmmap[i].start_addr) / PAGE_SIZE;
+        // printf("Freeing %d page_frames @ %x\n", page_frames, start_addr);
+        for(int j=0; j<page_frames; j++){
+            phys_addr = get_physaddr(start_addr + PAGE_SIZE * j);
+            if(phys_addr == 0){
+                printf("[ \x1b[31mFATAL\x1b[39m ] pushing NULL to stack allocator 0x%x + %d : %x\n", start_addr, j, start_addr + j*PAGE_SIZE);
+                kpanic();
+            }
+            free(phys_addr);
+        }
+    }
 
-    // // free curr executable ELFfile struct
-    // free(get_physaddr((void *)current_task_PCB->ELFfile));
+    random_alloc = 0xba02000;
+    kernel_heap_alloc = 0xc2102000;
 
-    // // free curr executable task_struct
-    // free(get_physaddr((void *)current_task_PCB));
-
-    // // free ld.so ELFfile struct
-    // free(get_physaddr((void *)dynamicLoader));
-
-    // // free the page directory thanks to recursive paging
-    // free(get_physaddr(virtual_page_directory));
 
     remove_running_process_from_runqueue();
     // finally, switch to the next process in queue
@@ -70,7 +71,13 @@ uint32_t ExitHandler(Registers *regs){
 
 uint32_t ForkHandler(Registers *regs){
     // TODO ASAP all of these mappings should be in the kernel heap
-    uint32_t *child_pd = mmap((void *)kernel_heap_alloc, PAGE_SIZE, PAGE_WRITABLE, MAP_ANONYMOUS, -1, 0);
+    task_struct *child_task = mmap((void *)kernel_heap_alloc, PAGE_SIZE, PAGE_WRITABLE, MAP_ANONYMOUS, -1, 0);
+    child_task->number_of_mappings = 0;
+    add_memory_mapping(child_task, kernel_heap_alloc, PROT_READ|PROT_WRITE, PAGE_SIZE, 0, "[kheap]");
+    kernel_heap_alloc += PAGE_SIZE;
+
+    uint32_t *child_pd = map_and_zero_page((void *)kernel_heap_alloc, PAGE_SIZE, PAGE_WRITABLE, MAP_ANONYMOUS, -1, 0);
+    add_memory_mapping(child_task, kernel_heap_alloc, PROT_READ|PROT_WRITE, PAGE_SIZE, 0, "[kheap]");
     kernel_heap_alloc += PAGE_SIZE;
 
     //copy the parent's pd
@@ -84,13 +91,14 @@ uint32_t ForkHandler(Registers *regs){
             continue;
         }
         uint32_t *page_table = (uint32_t *)(0xffc00000 + i * PAGE_SIZE);
-        uint32_t *child_page_table = mmap((void *)kernel_heap_alloc, PAGE_SIZE, PAGE_WRITABLE, MAP_ANONYMOUS, -1, 0);
+        uint32_t *child_page_table = map_and_zero_page((void *)kernel_heap_alloc, PAGE_SIZE, PAGE_WRITABLE, MAP_ANONYMOUS, -1, 0);
+        add_memory_mapping(child_task, kernel_heap_alloc, PROT_READ|PROT_WRITE, PAGE_SIZE, 0, "[kheap]");
         kernel_heap_alloc += PAGE_SIZE;
 
         child_pd[i] = (uint32_t)get_physaddr(child_page_table) | PAGE_USER | PAGE_WRITABLE | PAGE_PRESENT;
         for(size_t j=0; j<1024; j++){
-            page_table[j] &= ~PAGE_WRITABLE;
-            child_page_table[j] = page_table[j];
+            // page_table[j] &= ~PAGE_WRITABLE;
+            child_page_table[j] = page_table[j] & ~PAGE_WRITABLE;
         }
     }
 
@@ -99,22 +107,26 @@ uint32_t ForkHandler(Registers *regs){
     uint32_t child_pd_phys_addr = (uint32_t)get_physaddr((void *)child_pd);
     child_pd[1023] = child_pd_phys_addr | PAGE_USER | PAGE_WRITABLE | PAGE_PRESENT;
     // should be in kernel heap
-    task_struct *child_task = mmap((void *)kernel_heap_alloc, PAGE_SIZE, PAGE_WRITABLE, MAP_ANONYMOUS, -1, 0);
-    kernel_heap_alloc += PAGE_SIZE;
     child_task->cr3 = (void *)child_pd_phys_addr;
     child_task->esp0 = mmap((void *)kernel_heap_alloc, PAGE_SIZE, PAGE_WRITABLE, MAP_ANONYMOUS, -1, 0);
-    child_task->esp0 += PAGE_SIZE;
+    add_memory_mapping(child_task, kernel_heap_alloc, PROT_READ|PROT_WRITE, PAGE_SIZE, 0, "[kheap]");
     kernel_heap_alloc += PAGE_SIZE;
-    // memcpy(child_task->esp0 - PAGE_SIZE, (void *)(regs->kern_esp & ~0xfff), PAGE_SIZE);
+    child_task->esp0 += PAGE_SIZE;
     child_task->esp = (void *)regs->kern_esp;
     child_task->eip = (void *)regs->eip;
     //should the child inherit all the file descriptors?
+    
     child_task->fd[0] = current_task_PCB->fd[0]; 
     child_task->fd[1] = current_task_PCB->fd[1]; 
-    child_task->fd[2] = current_task_PCB->fd[2]; 
-    child_task->openedFiles = current_task_PCB->openedFiles;
+    child_task->fd[2] = current_task_PCB->fd[2];
+    FAT_IncreaseRefcount(current_task_PCB->fd[0]);
+    FAT_IncreaseRefcount(current_task_PCB->fd[1]);
+    FAT_IncreaseRefcount(current_task_PCB->fd[2]);
+    for(int i=3; i<10; i++)
+        child_task->fd[i] = current_task_PCB->fd[i];
+    // child_task->openedFiles = current_task_PCB->openedFiles;
 
-    child_task->number_of_mappings = 0;
+    
     // child_task->number_of_mappings = current_task_PCB->number_of_mappings;
     // for(size_t i=0; i<child_task->number_of_mappings; i++){
     //     child_task->vmmap[i] = current_task_PCB->vmmap[i]; 
@@ -149,6 +161,7 @@ uint32_t ReadHandler(Registers *regs){
 }
 
 extern struct flanterm_context *ft_ctx;
+#include <kernel/io.h>
 
 uint32_t WriteHandler(Registers *regs){
     uint32_t fd = regs->ebx;
@@ -156,15 +169,20 @@ uint32_t WriteHandler(Registers *regs){
     size_t len = regs->edx;
     //little workaround for the moment
     //TODO replace this with actual synchronization between /dev/fd/1 and tty
-    if(fd == STDOUT || fd == STDERR)
+    if(fd == STDOUT || fd == STDERR){
+        const unsigned char* bytes = (const unsigned char*) buf;
+        for (size_t i = 0; i < len; i++)
+            i686_outb(0xe9, bytes[i]);
         flanterm_write(ft_ctx, buf, len);
+    }
     return FAT_Write(disk, current_task_PCB->fd[fd], len, buf);
 }
 
 uint32_t OpenHandler(Registers *regs){
     const char *path = (const char *)regs->ebx;
-    current_task_PCB->fd[current_task_PCB->openedFiles] = FAT_Open(disk, path);
-    return current_task_PCB->openedFiles++ + 3; //to reserve 0,1,2 for stdin, stdout, stderr
+    // current_task_PCB->fd[current_task_PCB->openedFiles] = FAT_Open(disk, path);
+    // return current_task_PCB->openedFiles++ + 3; //to reserve 0,1,2 for stdin, stdout, stderr
+    return -1; //unimplemented
 }
 
 uint32_t OpenAtHandler(Registers *regs){
@@ -176,8 +194,17 @@ uint32_t OpenAtHandler(Registers *regs){
     if(result == NULL){
         return -1;
     }
-    current_task_PCB->fd[current_task_PCB->openedFiles] = result;
-    uint32_t fd = current_task_PCB->openedFiles++;
+    uint32_t fd = -1;
+    for(size_t i=0; i<10; i++){
+        if(current_task_PCB->fd[i] == NULL){
+            current_task_PCB->fd[i] = result;
+            fd = i;
+            break;
+        }
+    }
+    if(fd == -1){
+        printf("Openat: couldn't find free fd!\n");
+    }
     return fd;
 }
 
@@ -187,7 +214,7 @@ uint32_t CloseHandler(Registers *regs){
         printf("CLOSE: closing %d\n", fd);
     FAT_Close(disk, current_task_PCB->fd[fd]);
     //what to do with dangling fd?
-    //current_task_PCB->fd[fd] = NULL;
+    current_task_PCB->fd[fd] = NULL;
     return 0;
 }
 
@@ -222,18 +249,59 @@ uint32_t ExecveHandler(Registers *regs){
         printf("EXECVE: %s with argv: %x and envp: %x\n", path, argv, envp);
     debugIsExecve = 1;
 
+
+    // print_memory_mappings(current_task_PCB);
     // free all the page frames allocated in this process' address space
     // for(size_t i=0; i<current_task_PCB->number_of_mappings; i++){
-    //     if(!strcmp(current_task_PCB->vmmap[i].path, "stack"))
-    //         continue;
     //     void *start_addr = (void *)current_task_PCB->vmmap[i].start_addr;
     //     size_t page_frames = (current_task_PCB->vmmap[i].end_addr - current_task_PCB->vmmap[i].start_addr) / PAGE_SIZE;
+    //     printf("EXECVE: Freeing %d page_frames @ %x\n", page_frames, start_addr);
     //     for(size_t j=0; j<page_frames; j++){
-    //         free(get_physaddr(start_addr + PAGE_SIZE * j));
+    //         void *phys_addr = get_physaddr(start_addr + PAGE_SIZE * j);
+    //         if(phys_addr == NULL){
+    //             printf("[ \x1b[31mFATAL\x1b[39m ] pushing NULL to stack allocator 0x%x + %d : %x\n", start_addr, j, start_addr + j*PAGE_SIZE);
+    //             kpanic();
+    //         }
+    //         free(phys_addr);
     //     }
     // }
-    // current_task_PCB->vmmap[0].start_addr = 
-    //should not return
+    current_task_PCB->number_of_mappings = 0;
+    // int argc = 0;
+    // if(argv){
+    //     while(argv[argc])
+    //         argc++;
+    // }
+
+    // int envc = 0;
+    // if(envp){
+    //     while(envp[envc]){
+    //         envc++;
+    //     }
+    // }
+
+    // const char *copy_argv[argc+1];
+    // const char *copy_envp[envc+1];
+
+    // char *copy_argv_and_envp = mmap((void *)kernel_heap_alloc, PAGE_SIZE, PROT_READ | PROT_WRITE, MAP_ANONYMOUS, -1, 0);
+    // add_memory_mapping(current_task_PCB, kernel_heap_alloc, PROT_READ | PROT_WRITE, PAGE_SIZE, 0, "[kheap]");
+    // kernel_heap_alloc += PAGE_SIZE;
+    // int i = 0;
+    // while(i < argc){
+    //     strcpy(copy_argv_and_envp, argv[i]);
+    //     copy_argv[i] = copy_argv_and_envp;
+    //     copy_argv_and_envp += strlen(argv[i]) + 1;
+    //     i++;
+    // }
+    // copy_argv[argc] = NULL;
+    // i = 0;
+    // while(i < envc){
+    //     strcpy(copy_argv_and_envp, envp[i]);
+    //     copy_envp[i] = copy_argv_and_envp;
+    //     copy_argv_and_envp += strlen(envp[i]) + 1;
+    //     i++;
+    // }
+    // copy_envp[envc] = NULL;
+
     change_to_new_executable(current_task_PCB, disk, path, argv, envp);
 
     //if returns it's an error
@@ -256,22 +324,26 @@ uint32_t GetPidHandler(Registers *regs){
 }
 
 uint32_t GetUidHandler(Registers *regs){
-    printf("GETUID is a stub\n");
+    if(verbose)
+        printf("GETUID is a stub\n");
     return 0;
 }
 
 uint32_t GetGidHandler(Registers *regs){
-    printf("GETGID is a stub\n");
+    if(verbose)
+        printf("GETGID is a stub\n");
     return 0;
 }
 
 uint32_t GetEUidHandler(Registers *regs){
-    printf("GETEUID is a stub\n");
+    if(verbose)
+        printf("GETEUID is a stub\n");
     return 0;
 }
 
 uint32_t GetEGidHandler(Registers *regs){
-    printf("GETEGID is a stub\n");
+    if(verbose)
+        printf("GETEGID is a stub\n");
     return 0;
 }
 
@@ -349,16 +421,16 @@ uint32_t MMAPHandler(Registers *regs){
     int flags = (int)regs->esi;
     int fd = (int)regs->edi;
     uint32_t offset = regs->ebp;
+    uint32_t result = (uint32_t)map_and_zero_page(virtual_addr, size, PAGE_WRITABLE, flags, fd, offset);
+    add_memory_mapping(current_task_PCB, result, prot, size, offset, "[heap]");
     if(verbose)
         printf("mmap @ %x + %x with prot %x flags %x fd %x offset %x\n",
-                virtual_addr,
+                result,
                 size,
                 prot,
                 flags,
                 fd,
                 offset);
-    uint32_t result = (uint32_t)mmap(virtual_addr, size, PAGE_WRITABLE, flags, fd, offset);
-    add_memory_mapping(current_task_PCB, result, prot, size, offset, "[heap]");
     return result;
 }
 
@@ -370,6 +442,7 @@ uint32_t MUNMAPHandler(Registers *regs){
                 virtual_addr,
                 size);
     uint32_t result = (uint32_t)munmap(virtual_addr, size);
+    remove_memory_mapping(current_task_PCB, (uint32_t)virtual_addr, size);
     return result;
 }
 
@@ -405,6 +478,7 @@ uint32_t IOCTLHandler(Registers *regs){
         printf("IOCTL %s fd: %d cmd: 0x%x arg: 0x%x is a stub\n", ioctl_cmds[cmd-TCGETS], fd, cmd, arg);
     switch(cmd){
         case TCGETS:
+            // struct termios *term = (struct termios *)arg;
             break;
         case TIOCGWINSZ:
             struct winsize *window = (struct winsize*)regs->edx;
@@ -426,6 +500,10 @@ uint32_t FCNTLHandler(Registers *regs){
     return 0;
 }
 
+#define VOLUME_ID 0x08
+#define DIRECTORY 0x10
+#define ARCHIVE   0x20
+
 uint32_t ReadDirEntsHandler(Registers *regs){
     uint32_t dfd = regs->ebx;
     linux_dirent *dirEntries = (linux_dirent *)regs->ecx;
@@ -441,9 +519,20 @@ uint32_t ReadDirEntsHandler(Registers *regs){
     while(bytes_read < count && FAT_ReadEntry(disk, fd, &dirEntry) && dirEntry.Name[0]){
         dirEntries[i].d_ino = i;
         dirEntries[i].d_off = i;
-        dirEntries[i].d_type = DT_REG;
-        memcpy(dirEntries[i].d_name, (const void *)dirEntry.Name, 11);
-        dirEntries[i].d_name[11] = '\0';
+        FAT_FATfilename_to_filename(dirEntry.Name, dirEntries[i].d_name);
+        if(dirEntry.Attributes == ARCHIVE){
+            dirEntries[i].d_type = DT_REG;
+            // printf("%s is a regular file!\n", dirEntries[i].d_name);
+        }
+        else if(dirEntry.Attributes == DIRECTORY){
+            dirEntries[i].d_type = DT_DIR;
+            // printf("%s is a directory!\n", dirEntries[i].d_name);
+        }
+        else{
+            dirEntries[i].d_type = DT_UNKNOWN;
+            // printf("%s is unknown!\n", dirEntries[i].d_name);
+            continue;
+        }
         dirEntries[i].d_reclen = sizeof(linux_dirent);//offsetof(linux_dirent, d_name) + 11;
         i++;
         bytes_read += sizeof(linux_dirent);//offsetof(linux_dirent, d_name) + 12;
@@ -534,10 +623,12 @@ uint32_t SyscallHandler(Registers *regs){
                 printf("Syscall: MPROTECT\n");
             return MProtectHandler(regs);
         case UNAME:
-            printf("Syscall: UNAME\n");
+            if(verbose)
+                printf("Syscall: UNAME\n");
             return UnameHandler(regs);
         case GETPGID:
-            printf("Syscall: GETPGID\n");
+            if(verbose)
+                printf("Syscall: GETPGID\n");
             return GetPGidHandler(regs);
         case ARCH_PRCTL:
             if(verbose)

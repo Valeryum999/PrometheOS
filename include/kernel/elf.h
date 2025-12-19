@@ -312,7 +312,6 @@ typedef struct task_struct{
     int child_pid; // child pid (for now a process can have one single child)
     uint8_t state; //state of the process
 	ELF32_File *ELFfile; //pointer to ELFfile
-    uint8_t openedFiles; //number of openedFiles
     FAT_File *fd[10];   // file descriptors
     memory_mappings vmmap[20];  //memory mappings
     uint8_t number_of_mappings;
@@ -330,5 +329,9 @@ void add_memory_mapping(task_struct *process,
                         size_t size, 
                         size_t offset, 
                         const char *path);
+
+void remove_memory_mapping(task_struct *process,
+                           uint32_t start_addr,
+                           size_t size);
 
 #endif

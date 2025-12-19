@@ -34,19 +34,17 @@ void timer(Registers *regs){
 extern stack_t stack;
 
 void kernel_main(uint32_t mb2_magic, uint32_t mb_info_addr) {
+	flanterm_initialize(mb2_magic, mb_info_addr);
 	init_GDT();
 	init_IDT();
 	init_ISR();
 	init_stack();
 	void *TSS_stack = mmap((void *)0xcfff8000, 0x8000, PAGE_WRITABLE, MAP_ANONYMOUS, -1, 0);
 	load_TSS((uint32_t)(TSS_stack + 0x8000));
-	flanterm_initialize(mb2_magic, mb_info_addr);
 	reload_GDT_for_TSS();
 	i686_IRQ_Initialize();
 	i686_IRQ_RegisterHandler(0, timer);
 	init_keyboard();
-
-	printf("Hello World!\n");
 	printf("End kernel is @ 0x%x phys_addr: 0x%x\n", &end_kernel, get_physaddr((void *)&end_kernel));
 	uint32_t end_kernel_uint = (uint32_t)&end_kernel;
 	end_kernel_uint &= ~0xfff;
@@ -65,10 +63,9 @@ void kernel_main(uint32_t mb2_magic, uint32_t mb_info_addr) {
 
 	printf("Found disk at 0x%x phys_addr: 0x%x\n", guess_disk_pos, get_physaddr(guess_disk_pos));
 	disk = (DISK *) guess_disk_pos;
-	end_of_disk = get_physaddr((void *)(guess_disk_pos + 0x1A90000));
-	printf("End of disk is @ 0x%x phys_addr: 0x%x\n", guess_disk_pos + 0x1A90000, end_of_disk);
+	end_of_disk = get_physaddr((void *)(guess_disk_pos + 0x1FFF000));
+	printf("End of disk is @ 0x%x phys_addr: 0x%x\n", guess_disk_pos + 0x1FFF000, end_of_disk);
 	FAT_Initialize(disk);
-	printf("stack top is @ %x\n", stack.top);
 	task_struct *processTestMlibc = mmap((void *)0xd0000000, PAGE_SIZE, PAGE_WRITABLE, MAP_ANONYMOUS, -1, 0);
 	task_struct idle_task;
 	initialize_multiprocessing(&idle_task);

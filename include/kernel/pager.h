@@ -25,6 +25,7 @@ void init_page_tables();
 void kalloc_page_tables(uint32_t *virtualaddr);
 void *get_physaddr(void *virtualaddr);
 void *map_raw(void *virtualaddr, void *physaddr, int size);
+void *map_and_zero_page(void *virtualaddr, size_t size, int prot, int flags, int fd, uint32_t offset);
 void *mmap(void *virtualaddr, size_t size, int prot, int flags, int fd, uint32_t offset);
 int munmap(void *virtualaddr, uint32_t size);
 void remap_page(void *page, void *new_addr);

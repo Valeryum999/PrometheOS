@@ -93,6 +93,10 @@ static uint32_t FAT_ClusterToLba(uint32_t cluster){
 
 extern void kpanic();
 
+void FAT_IncreaseRefcount(FAT_File *fd){
+    g_Data->OpenedFiles[fd->Handle].RefCount++;
+}
+
 FAT_File *FAT_OpenEntry(DISK *disk, FAT_DirectoryEntry *entry) {
     int handle = -1;
     for(int i = 0; i < MAX_FILE_HANDLES && handle < 0; i++){
@@ -112,6 +116,7 @@ FAT_File *FAT_OpenEntry(DISK *disk, FAT_DirectoryEntry *entry) {
     fd->Public.Handle = handle;
     fd->Public.isDirectory = (entry->Attributes & FAT_ATTRIBUTE_DIRECTORY) != 0;
     fd->Public.Position = 0;
+    fd->RefCount = 1;
     fd->Public.Size = entry->Size;
     fd->FirstCluster = entry->FirstClusterLow + ((uint32_t)entry->FirstClusterHigh << 16);
     fd->CurrentCluster = fd->FirstCluster;
@@ -164,6 +169,31 @@ void FAT_filename_to_FATfilename(const char *name, char *fatName){
     }
 }
 
+void FAT_FATfilename_to_filename(const char *fatName, char *name){
+    memset(name, 0, 11);
+
+    int i = 0;
+    int pos = 0;
+    while(fatName[i] != ' '){
+        name[i] = tolower(fatName[i]);
+        i++;
+        pos++;
+    }
+
+    while(fatName[i] == ' ' && i < 11)
+        i++;
+
+    if(i == 11)
+        return;
+    
+    name[pos++] = '.';
+    while(i < 11){
+        name[pos] = tolower(fatName[i]);
+        pos++;
+        i++;
+    }
+}
+
 extern int verbose;
 
 int FAT_findFile(DISK *disk, FAT_File *file, const char *name, FAT_DirectoryEntry *entryOut) {
@@ -186,6 +216,40 @@ int FAT_findFile(DISK *disk, FAT_File *file, const char *name, FAT_DirectoryEntr
     return 0;
 }
 
+FAT_File *FAT_openRootDirectory(DISK *disk){
+    int handle = -1;
+    for(int i = 0; i < MAX_FILE_HANDLES && handle < 0; i++){
+        if(!g_Data->OpenedFiles[i].Opened){
+            handle = i;
+            break;
+        }
+    }
+
+    if(handle < 0){
+        printf("FAT: out of file handles\n");
+        kpanic();
+        return NULL;
+    }
+
+    FAT_FileData *fd = &g_Data->OpenedFiles[handle];
+    fd->Public.Handle = handle;
+    fd->Public.isDirectory = 1;
+    fd->Public.Position = 0;
+    fd->RefCount = 1;
+    fd->Public.Size = g_Data->RootDirectory.Public.Size;
+    fd->FirstCluster = g_Data->RootDirectory.FirstCluster;
+    fd->CurrentCluster = fd->FirstCluster;
+    fd->CurrentSectorInCluster = 0;
+
+    if(!FAT_readSectors(disk, fd->CurrentCluster, 1, fd->Buffer)){
+        printf("FAT: read error\n");
+        return NULL;
+    }
+
+    fd->Opened = 1;
+    return &fd->Public;
+}
+
 FAT_File *FAT_Open(DISK *disk, const char *path) {
     if(*path == '\0') return NULL;
     char name[MAX_PATH_SIZE];
@@ -197,8 +261,9 @@ FAT_File *FAT_Open(DISK *disk, const char *path) {
     FAT_File *current = &g_Data->RootDirectory.Public;
 
     // return root directory if asked for "."
-    if(path[0] == '.' && path[1] == '\0')
-        return current;
+    if(path[0] == '.' && path[1] == '\0'){
+        return FAT_openRootDirectory(disk);
+    }
 
     while(*path){
         const char* delim = strchr(path, '/');
@@ -229,12 +294,21 @@ FAT_File *FAT_Open(DISK *disk, const char *path) {
     return current;
 }
 
+#define S_IFMT   0170000
+#define S_IFREG  0100000
+#define S_IFDIR  0040000
+#define S_IFLNK  0120000
+#define S_IFCHR  0020000
+#define S_IFBLK  0060000
+#define S_IFIFO  0010000
+#define S_IFSOCK 0140000
+
 int FAT_StatAt(DISK *disk, FAT_File *file, int flags, struct stat* statbuf){
     if(file == NULL)
         return -1;
 
     statbuf->st_dev = 1;
-    statbuf->st_mode = 7;
+    statbuf->st_mode = 7;//(file->isDirectory) ? S_IFDIR : S_IFREG;
     statbuf->st_nlink = 0;
     statbuf->st_uid = 0;
     statbuf->st_gid = 0;
@@ -472,6 +546,8 @@ void FAT_Close(DISK *disk, FAT_File *file){
         g_Data->RootDirectory.CurrentCluster = g_Data->RootDirectory.FirstCluster;
     } else {
         FAT_FileData *fd = &g_Data->OpenedFiles[file->Handle];
-        fd->Opened = 0;
+        fd->RefCount--;
+        if(fd->RefCount == 0)
+            fd->Opened = 0;
     }
 }

@@ -321,7 +321,7 @@ int ELF_load(DISK *disk, FAT_File *fd, ELF32_File *file, task_struct *process){
             }
 
             size_t size = file->programHeaders[i].MemorySize;
-        void *result = mmap(page, size, PAGE_USER | PAGE_WRITABLE, MAP_ANONYMOUS, -1, 0);
+            void *result = mmap(page, size, PAGE_USER | PAGE_WRITABLE, MAP_ANONYMOUS, -1, 0);
             if(result == NULL){
                 printf("Failed to mmap page %x!\n",page);
                 return -1;
@@ -352,8 +352,14 @@ void add_memory_mapping(task_struct *process,
                         size_t size, 
                         size_t offset, 
                         const char *path) {
+    
+    if(process->number_of_mappings >= 20){
+        printf("[ \x1b[31mWARNING\x1b[39m ]: trying to add memory mapping to an already full PCB\n");
+        return;
+    }
+
     for(size_t i=0; i<process->number_of_mappings; i++){
-        //can merge
+        //merge from end -> start
         if(process->vmmap[i].end_addr == start_addr 
             && process->vmmap[i].flags == flags
             && !strcmp(process->vmmap[i].path, path)){
@@ -374,14 +380,40 @@ void add_memory_mapping(task_struct *process,
     process->number_of_mappings++;
 }
 
+// still can't handle to remove mapping in the middle
+void remove_memory_mapping(task_struct *process, uint32_t start_addr, size_t size){
+    //force size to be page-aligned
+    if(size & 0xfff)
+        size = (size & ~0xfff + PAGE_SIZE);
+        
+    for(int i=0; i<process->number_of_mappings; i++){
+        memory_mappings *cur = &process->vmmap[i];
+        if(start_addr == cur->start_addr){
+            if(start_addr + size == cur->end_addr){
+                // just erase the current entry by shifting the whole array left by one
+                for(int j=i; j<process->number_of_mappings - 1; j++){
+                    process->vmmap[j] = process->vmmap[j+1];
+                }
+                process->number_of_mappings--;
+            } else {
+                cur->start_addr += size;
+            }
+            return;
+        } else if((start_addr + size) == cur->end_addr){
+            cur->end_addr = start_addr;
+            return;
+        }
+    }
+}
+
 void print_memory_mappings(task_struct *process){
     //dirty workaround, to fix
-    printf("Start\t\tEnd\t\t\tPerm\tSize\t\tOffset\tFile\n");
+    printf("Start\t\tEnd\t\tPerm\tSize\tOffset\tFile\n");
     for(size_t i=0; i<process->number_of_mappings; i++){
         printf("0x%x\t0x%x\t",process->vmmap[i].start_addr,
                                          process->vmmap[i].end_addr);
         ELF_printPermissions(ELF_to_MMAP_perm(process->vmmap[i].flags));
-        printf("\t\t%x\t\t%x\t\t%s\n",process->vmmap[i].size,
+        printf("\t%x\t%x\t%s\n",process->vmmap[i].size,
                   process->vmmap[i].offset,
                   process->vmmap[i].path);
         

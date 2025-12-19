@@ -1,10 +1,11 @@
 #include <kernel/pager.h>
+#include <kernel/elf.h>
 
 uint32_t page_directory[1024] __attribute__((aligned(4096), section(".lowdata")));
 uint32_t page_tables[1024][1024] __attribute__((aligned(4096), section(".lowdata")));
 uint32_t *virtual_page_directory = (uint32_t *) 0xfffff000;
 uint32_t random_alloc = 0xb000000;
-uint32_t kernel_heap_alloc = 0xc2000000;
+uint32_t kernel_heap_alloc = 0xc2100000;
 
 extern uint32_t end_lowtext;
 extern uint32_t end_kernel;
@@ -68,9 +69,14 @@ void *get_physaddr(void *virtualaddr) {
     return (void *)((page_table[page_table_index] & ~0xFFF) + ((uint32_t)virtualaddr & 0xFFF));
 }
 
+extern task_struct *current_task_PCB;
+
+//alloc a page frame for a page table and zero it (important)
 void malloc_page_table(uint32_t page_directory_index){
-    uint32_t *page_table = (uint32_t *)kalloc_page_frame();
-    virtual_page_directory[page_directory_index] = ((uint32_t)page_table) | PAGE_USER | PAGE_WRITABLE | PAGE_PRESENT;
+    uint32_t *phys_addr = (uint32_t *)kalloc_page_frame();
+    virtual_page_directory[page_directory_index] = ((uint32_t)phys_addr) | PAGE_USER | PAGE_WRITABLE | PAGE_PRESENT;
+    void *page_table = (void *)0xffc00000 + page_directory_index * PAGE_SIZE;
+    memset(page_table, 0, PAGE_SIZE);
 }
 
 void *map_raw(void *virtualaddr, void *physaddr, int size){
@@ -93,6 +99,15 @@ void *map_raw(void *virtualaddr, void *physaddr, int size){
     return virtualaddr;
 }
 
+void *map_and_zero_page(void *virtualaddr, size_t size, int prot, int flags, int fd, uint32_t offset){
+    void *result = mmap(virtualaddr, size, prot, flags, fd, offset);
+
+    if(size & 0xfff)
+        size = (size & ~0xfff) + PAGE_SIZE;
+    memset(result, 0, size);
+    return result;
+}
+
 void *mmap(void *virtualaddr, size_t size, int prot, int flags, int fd, uint32_t offset) {
     //TODO: Make sure that both addresses are page-aligned.
     size_t numPages = size / PAGE_SIZE + (((size % PAGE_SIZE) > 0) ? 1 : 0);
@@ -108,6 +123,7 @@ void *mmap(void *virtualaddr, size_t size, int prot, int flags, int fd, uint32_t
         
         if(!(virtual_page_directory[page_directory_index] & PAGE_PRESENT)){
             malloc_page_table(page_directory_index);
+            add_memory_mapping(current_task_PCB, (uint32_t)page_table, PROT_READ | PROT_WRITE, PAGE_SIZE, 0, "[page table]");
         }
         
         void *physaddr = kalloc_page_frame();
@@ -164,6 +180,10 @@ int munmap(void *virtualaddr, uint32_t size){
         page_table[page_table_index] = 0;
         asm volatile("invlpg (%0)" ::"r" (curr_addr) : "memory");
     
+        if(phys_addr == NULL){
+            printf("[ \x1b[31mFATAL\x1b[39m ] pushing NULL to stack allocator 0x%x + %d : %x\n", curr_addr, i, curr_addr + i*PAGE_SIZE);
+            return -1;
+        }
         free(phys_addr);
     }
     return 0;

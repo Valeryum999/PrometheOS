@@ -8,6 +8,7 @@ extern "C" {
 #endif
 
 int islower(char chr);
+char tolower(char chr);
 char toupper(char chr);
 
 #ifdef __cplusplus

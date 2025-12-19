@@ -208,23 +208,23 @@ void keyboard_callback(Registers *regs){
 		return;
 	}
 
-    if(scancode == 0x48) {
-      // arrow up
-      terminal_history_up();
-      return;
-	  } else if(scancode == 0x50) {
-      // arrow down
-      terminal_history_down();
-      return;
-	  } else if(scancode == 0x4b){
-      // arrow left
-      terminal_move_cursor_left();
-      return;
-    } else if(scancode == 0x4d){
-      // arrow left
-      terminal_move_cursor_right();
-      return;
-    }
+    // if(scancode == 0x48) {
+    //   // arrow up
+    //   terminal_history_up();
+    //   return;
+	  // } else if(scancode == 0x50) {
+    //   // arrow down
+    //   terminal_history_down();
+    //   return;
+	  // } else if(scancode == 0x4b){
+    //   // arrow left
+    //   terminal_move_cursor_left();
+    //   return;
+    // } else if(scancode == 0x4d){
+    //   // arrow left
+    //   terminal_move_cursor_right();
+    //   return;
+    // }
 
     if(parsed_char == '<'){
       // print_memory_mappings(current_task_PCB);
@@ -234,6 +234,13 @@ void keyboard_callback(Registers *regs){
 
     // TODO better insert, this sucks
     printf("%c",parsed_char);
+
+    //backspace
+    if(parsed_char == '\b'){
+      stdin_position--;
+      return;
+    }
+    
     stdin_buffer[stdin_position++] = parsed_char;
     if(parsed_char == '\n' || stdin_position == 0x200){
       FAT_Write(disk, current_task_PCB->fd[0], stdin_position, stdin_buffer);

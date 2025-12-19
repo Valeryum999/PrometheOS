@@ -116,7 +116,7 @@ void task_entry(const char **argv, const char **envp){
     // push argc
     *(--sp) = argc;
 
-    entryPosition = 0xa00000 + 0x1dae9; //TODO base addr
+    entryPosition = 0xa00000 + 0x1dd09; //TODO base addr
     asm volatile(
         "mov sp, %esp \n\t"
         "mov entryPosition, %eax \n\t" //PH_INTERP entry point

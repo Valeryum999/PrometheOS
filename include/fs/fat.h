@@ -72,6 +72,7 @@ typedef struct{
 typedef struct{
     FAT_File Public;
     int Opened;
+    int RefCount;
     uint32_t FirstCluster;
     uint32_t CurrentCluster;
     uint32_t CurrentSectorInCluster;
@@ -100,10 +101,12 @@ typedef struct {
 
 void FAT_Initialize(DISK *disk);
 void FAT_printBootSector();
+void FAT_IncreaseRefcount(FAT_File *fd);
 FAT_File *FAT_OpenEntry(DISK *disk, FAT_DirectoryEntry *entry);
 FAT_File *FAT_Open(DISK *disk, const char *path);
 int FAT_StatAt(DISK *disk, FAT_File *file, int flags, struct stat* statbuf);
 void FAT_filename_to_FATfilename(const char *name, char *fatName);
+void FAT_FATfilename_to_filename(const char *fatName, char *name);
 void FAT_NextSector(DISK *disk, FAT_FileData *fd);
 int FAT_findFile(DISK *disk, FAT_File *file, const char *name, FAT_DirectoryEntry *entryOut);
 int FAT_Read(DISK *disk, FAT_File *file, uint32_t byteCount, void *buf);

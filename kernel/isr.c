@@ -46,6 +46,7 @@ static const char* const g_Exceptions[] = {
 };
 
 extern int verbose;
+extern task_struct *current_task_PCB;
 
 void PageFaultHandler(Registers *regs){
     uint32_t cr2;
@@ -57,6 +58,7 @@ void PageFaultHandler(Registers *regs){
             remap_page(page, (void *)0xbff00000);
             //map a new physical address to copy the previous contents into
             mmap(page, PAGE_SIZE, PAGE_USER | PAGE_WRITABLE, MAP_ANONYMOUS, -1, 0);
+            add_memory_mapping(current_task_PCB, (uint32_t)page, PROT_READ | PROT_WRITE, PAGE_SIZE, 0, "[COW]");
             //copy the whole page memory contents in the new writable page
             memcpy(page, (void *)0xbff00000, PAGE_SIZE);
             return;

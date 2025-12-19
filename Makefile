@@ -16,7 +16,7 @@ LIBK_FLAGS = -g -Og -std=gnu11 --sysroot=/home/valeryum/PrometheOS/sysroot -ffre
 ARCHDIR = arch/$(TARGET_ARCH)
 include $(ARCHDIR)/arch.mk
 
-QEMU_FLAGS = -monitor stdio -chardev file,id=dbglog,path=debug.log -device isa-debugcon,iobase=0xE9,chardev=dbglog -cdrom
+QEMU_FLAGS = -m 1G -monitor stdio -chardev file,id=dbglog,path=debug.log -device isa-debugcon,iobase=0xE9,chardev=dbglog -cdrom
 
 OBJS = \
 	$(ARCH_OBJS) \

@@ -12,23 +12,21 @@ void write_cr3(uint32_t pd){
 
 extern uint32_t kernel_heap_alloc;
 
-void *map_page_directory_kernel(){
-    uint32_t *process_pd = (uint32_t *)kernel_heap_alloc;
+void *map_page_directory_kernel(task_struct *process){
+    uint32_t *process_pd = map_and_zero_page((void *)kernel_heap_alloc, PAGE_SIZE, PAGE_WRITABLE, MAP_ANONYMOUS, -1, 0);
+    add_memory_mapping(process, kernel_heap_alloc, PROT_READ|PROT_WRITE, PAGE_SIZE, 0, "[kheap]");
     kernel_heap_alloc += PAGE_SIZE;
     void *phys_addr = get_physaddr((void *)process_pd);
     
-    //map first page directory for VGA text buffer
+    //map first page directory for low kernel code
     process_pd[0] = virtual_page_directory[0];
     for(int i=KERNEL_PAGE_DIRECTORY_INDEX; i<1023; i++){
         process_pd[i] = virtual_page_directory[i];
     }
-    //for being able to write in 0xb8000 VGA memory
-    // process_pd[0] = virtual_page_directory[0];
+
     process_pd[1023] = (uint32_t)phys_addr | PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER;
     kernel_page_directory = virtual_page_directory[1023];
     
-    
-
     return phys_addr;
 }
 
@@ -36,6 +34,9 @@ extern void kpanic();
 
 int load_process_ELF(task_struct *process, DISK *disk, const char* path, int isExecve){
     process->ELFfile = mmap(NULL, PAGE_SIZE, PAGE_WRITABLE, MAP_ANONYMOUS, -1, 0);
+    if(process->ELFfile == NULL){
+        return -1;
+    }
     add_memory_mapping(process, (uint32_t)process->ELFfile, PROT_READ|PROT_WRITE, PAGE_SIZE, 0, "[exec ELFfile]");
     
     
@@ -89,7 +90,9 @@ int load_process_ELF(task_struct *process, DISK *disk, const char* path, int isE
 
 void map_stack(task_struct *process, const char **argv, const char **envp){
     void *stack_addr = mmap((void *)0xbff00000, 8*PAGE_SIZE, PAGE_WRITABLE, MAP_ANONYMOUS, -1, 0);
+    add_memory_mapping(process, (uint32_t)stack_addr, PROT_READ | PROT_WRITE, 8*PAGE_SIZE, 0, "stack");
     void *kstack_addr = mmap((void *)kernel_heap_alloc, PAGE_SIZE, PAGE_WRITABLE, MAP_ANONYMOUS, -1, 0);
+    add_memory_mapping(process, kernel_heap_alloc, PROT_READ|PROT_WRITE, PAGE_SIZE, 0, "[kheap]");
     kernel_heap_alloc += PAGE_SIZE;
     process->esp = stack_addr + 8*PAGE_SIZE;
     uint32_t *buffer = (uint32_t *)process->esp - 0x10;
@@ -103,16 +106,15 @@ void map_stack(task_struct *process, const char **argv, const char **envp){
     *(buffer)   = 0;
     process->esp = buffer;
     process->esp0 = kstack_addr + PAGE_SIZE;
-    add_memory_mapping(process, (uint32_t)stack_addr, PROT_READ | PROT_WRITE, 8*PAGE_SIZE, 0, "stack");
-    add_memory_mapping(process, (uint32_t)kstack_addr, PROT_READ | PROT_WRITE, PAGE_SIZE, 0, "kstack");
 }
 
 void reset_stack(task_struct *process, const char **argv, const char **envp){
     process->esp = (void *)0xbff00000 + 7*PAGE_SIZE + 0xfcc;
     uint32_t *sp = (uint32_t *)(process->esp);
     sp--;
-    *(sp--) = (uint32_t)argv;
     *(sp--) = (uint32_t)envp;
+    *(sp--) = (uint32_t)argv;
+    sp--;
     *(sp) = (uint32_t)task_entry;
     process->esp = sp;
 }
@@ -121,12 +123,13 @@ void reset_stack(task_struct *process, const char **argv, const char **envp){
 #define IS_EXECVE 1
 
 int change_to_new_executable(task_struct *process, DISK *disk, const char *path, const char **argv, const char **envp){
-    process->number_of_mappings = 0;
+    // process->number_of_mappings = 0;
     if(load_process_ELF(process, disk, path, NO_EXECVE) != 0){
         printf("Failed to load ELF file!\n");
         return -1;
     }
     reset_stack(process, argv, envp);
+    // reset_stack(process, argv, envp);
     // mov sp to task's kernel stack and ret to task_entry
     asm volatile(
         "mov %0, %%esp \n\t" 
@@ -141,7 +144,8 @@ int change_to_new_executable(task_struct *process, DISK *disk, const char *path,
 }
 
 int load_process(task_struct *process, DISK *disk, const char* path, const char **argv, const char **envp){
-    void *process_pd = map_page_directory_kernel();
+    process->number_of_mappings = 0;
+    void *process_pd = map_page_directory_kernel(process);
     write_cr3((uint32_t)process_pd);
     process->cr3 = process_pd; 
 
@@ -166,7 +170,6 @@ int load_process(task_struct *process, DISK *disk, const char* path, const char 
     process->fd[0] = stdin;
     process->fd[1] = stdout;
     process->fd[2] = stderr;
-    process->openedFiles = 3;
 
     if(load_process_ELF(process, disk, path, NO_EXECVE) != 0){
         printf("Failed to load ELF file!\n");

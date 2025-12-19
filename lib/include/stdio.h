@@ -14,8 +14,8 @@
 extern "C" {
 #endif
 
-int printf(const char* __restrict, ...);
 bool print(const char* data, size_t length);
+int printf(const char* __restrict, ...);
 int putchar(int);
 int puts(const char*);
 
