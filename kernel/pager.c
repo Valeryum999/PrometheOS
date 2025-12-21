@@ -182,7 +182,7 @@ int munmap(void *virtualaddr, uint32_t size){
         asm volatile("invlpg (%0)" ::"r" (curr_addr) : "memory");
     
         if(phys_addr == NULL){
-            error_print("pushing NULL to stack allocator");
+            error_print("MUNMAP: pushing NULL to stack allocator");
             return -1;
         }
         free(phys_addr);

@@ -117,8 +117,9 @@ int FAT_findFile(DISK *disk, FAT_File *file, const char *name, FAT_DirectoryEntr
 int FAT_Read(DISK *disk, FAT_File *file, uint32_t byteCount, void *buf);
 int FAT_Write(DISK *disk, FAT_File *file, uint32_t len, void *buf);
 int FAT_LSeek(DISK *disk, FAT_File *file, uint32_t offset, uint32_t whence);
-int FAT_CopyFile(DISK *disk, const char *old_name, const char *new_name);
 int FAT_ReadEntry(DISK *disk, FAT_File *file, FAT_DirectoryEntry *dirEntry);
 void FAT_Close(DISK *disk, FAT_File *file);
+FAT_FileData *FAT_FindFirstFreeDirectoryEntrySpace(DISK *disk);
+void FAT_CreateNewFile(DISK *disk, const char *path);
 
 #endif

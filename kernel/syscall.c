@@ -55,7 +55,8 @@ uint32_t ExitHandler(Registers *regs){
         for(int j=0; j<page_frames; j++){
             phys_addr = get_physaddr(start_addr + PAGE_SIZE * j);
             if(phys_addr == 0){
-                error_print("pushing NULL to stack allocator");
+                error_print("EXIT: pushing NULL to stack allocator");
+                continue;
                 kpanic();
             }
             free(phys_addr);
@@ -191,11 +192,44 @@ uint32_t OpenHandler(Registers *regs){
     return -EPERM; //unimplemented
 }
 
+typedef unsigned short umode_t;
+#define O_RDONLY   00
+#define O_WRONLY   01
+#define O_RDWR     02
+
+#define O_CREAT         0100
+#define O_EXCL          0200
+#define O_NOCTTY        0400
+#define O_TRUNC        01000
+#define O_APPEND       02000
+#define O_NONBLOCK     04000
+#define O_DSYNC       010000
+#define O_ASYNC       020000
+#define O_DIRECT      040000
+#define O_DIRECTORY  0200000
+#define O_NOFOLLOW   0400000
+#define O_CLOEXEC   02000000
+#define O_SYNC      04010000
+#define O_RSYNC     04010000
+#define O_LARGEFILE  0100000
+#define O_NOATIME   01000000
+#define O_TMPFILE  020000000
+
+
 uint32_t OpenAtHandler(Registers *regs){
-    int dfd = (int)regs->ebx;
+    int dfd          = (int)regs->ebx;
     const char *path = (const char *)regs->ecx;
+    int flags        = (int)regs->edx;
+    umode_t mode     = (umode_t)regs->esi;
+
     if(verbose)
-        printf("OPENAT: path is %s\n",path);
+        printf("OPENAT: dfd:%x\tflags:%x\tmode: %d\tpath is %s\n", dfd, flags, mode, path);
+
+    if(flags & O_CREAT){
+        debug_print("Trying to create file!");
+        FAT_CreateNewFile(disk, path);
+    }
+
     FAT_File *result = FAT_Open(disk, path);
     if(result == NULL){
         return -ENOENT;
@@ -220,7 +254,6 @@ uint32_t CloseHandler(Registers *regs){
     if(verbose)
         printf("CLOSE: closing %d\n", fd);
     FAT_Close(disk, current_task_PCB->fd[fd]);
-    //what to do with dangling fd?
     current_task_PCB->fd[fd] = NULL;
     return 0;
 }
@@ -237,16 +270,14 @@ uint32_t WaitPidHandler(Registers *regs){
 uint32_t LinkHandler(Registers *regs){
     const char *old_name = (const char *)regs->ebx;
     const char *new_name = (const char *)regs->ecx;
-    return FAT_CopyFile(disk, old_name, new_name);
+    return -EPERM;
 }
 
 uint32_t UnlinkHandler(Registers *regs){
     const char *pathname = (const char *)regs->ebx;
     printf("Unlink handler, for now stubbed\n");
-    return 0;
+    return -EPERM;
 }
-
-int debugIsExecve = 0;
 
 uint32_t ExecveHandler(Registers *regs){
     const char *path = (const char *)regs->ebx;
@@ -254,7 +285,6 @@ uint32_t ExecveHandler(Registers *regs){
     const char **envp = (const char **)regs->edx;
     if(verbose)
         printf("EXECVE: %s with argv: %x and envp: %x\n", path, argv, envp);
-    debugIsExecve = 1;
 
 
     // print_memory_mappings(current_task_PCB);
@@ -472,7 +502,7 @@ uint32_t ArchPRCTLHandler(Registers *regs){
 uint32_t UnameHandler(Registers *regs){
     struct utsname* info = (struct utsname*)regs->ebx;
     strcpy(info->sysname, "prometheos");
-    strcpy(info->nodename, "user");
+    strcpy(info->nodename, "localhost");
     strcpy(info->release, "0.0.1");
     strcpy(info->version, "0.0.1");
     strcpy(info->machine, "");
