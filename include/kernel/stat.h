@@ -33,7 +33,7 @@ typedef unsigned int        	uid_t;
 typedef unsigned int        	gid_t;
 typedef long                	off_t;
 typedef long                	blksize_t;
-typedef long unsigned int   	blkcnt_t;
+typedef long long unsigned int  blkcnt_t;
 typedef long long unsigned int  ino_t;
 typedef long		        	__kernel_long_t;
 typedef __kernel_long_t	    	__kernel_old_time_t;

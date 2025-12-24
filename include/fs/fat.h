@@ -120,6 +120,7 @@ int FAT_LSeek(DISK *disk, FAT_File *file, uint32_t offset, uint32_t whence);
 int FAT_ReadEntry(DISK *disk, FAT_File *file, FAT_DirectoryEntry *dirEntry);
 void FAT_Close(DISK *disk, FAT_File *file);
 FAT_FileData *FAT_FindFirstFreeDirectoryEntrySpace(DISK *disk);
+FAT_FileData *FAT_FindDirectoryEntry(DISK *disk, const FAT_DirectoryEntry *entry);
 void FAT_CreateNewFile(DISK *disk, const char *path);
 
 #endif

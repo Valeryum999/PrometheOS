@@ -55,7 +55,7 @@ uint32_t ExitHandler(Registers *regs){
         for(int j=0; j<page_frames; j++){
             phys_addr = get_physaddr(start_addr + PAGE_SIZE * j);
             if(phys_addr == 0){
-                error_print("EXIT: pushing NULL to stack allocator");
+                // error_print("EXIT: trying to push NULL to stack allocator");
                 continue;
                 kpanic();
             }
@@ -70,10 +70,8 @@ uint32_t ExitHandler(Registers *regs){
     remove_running_process_from_runqueue();
     // finally, switch to the next process in queue
     schedule();
-    // afterFork(current_task_PCB->next);
 
-    // should not return
-    return 0;
+    return -EPERM;
 }
 
 uint32_t ForkHandler(Registers *regs){
@@ -515,7 +513,7 @@ uint32_t IOCTLHandler(Registers *regs){
     uint32_t cmd = regs->ecx;
     uint32_t arg = regs->edx;
     if(verbose)
-        printf("IOCTL %s fd: %d cmd: 0x%x arg: 0x%x is a stub\n", ioctl_cmds[cmd-TCGETS], fd, cmd, arg);
+        printf("IOCTL fd: %d cmd: 0x%x arg: 0x%x is a stub\n", fd, cmd, arg);
     switch(cmd){
         case TCGETS:
             // struct termios *term = (struct termios *)arg;
@@ -527,6 +525,8 @@ uint32_t IOCTLHandler(Registers *regs){
             window->ws_xpixel = 1;
             window->ws_ypixel = 1;
             return 0;
+        default:
+            return -EPERM;
     }
     return 0;
 }

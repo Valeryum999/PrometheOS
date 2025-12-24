@@ -278,8 +278,12 @@ FAT_File *FAT_Open(DISK *disk, const char *path) {
     FAT_File *current = &g_Data->RootDirectory.Public;
 
     // return root directory if asked for "."
-    if(path[0] == '.' && path[1] == '\0'){
-        return FAT_openRootDirectory(disk);
+    if(path[0] == '.'){
+        if(path[1] == '.' || path[1] == '\0')
+            return FAT_openRootDirectory(disk);
+        path++;
+        while(*path == '/')
+            path++;
     }
 
     while(*path){
@@ -312,6 +316,8 @@ FAT_File *FAT_Open(DISK *disk, const char *path) {
     return current;
 }
 
+int last_cluster_available = 2;
+
 void FAT_CreateNewFile(DISK *disk, const char *path){
     FAT_FileData *dirEntry = FAT_FindFirstFreeDirectoryEntrySpace(disk);
     FAT_DirectoryEntry new_entry;
@@ -319,17 +325,19 @@ void FAT_CreateNewFile(DISK *disk, const char *path){
     memset(&new_entry, 0, sizeof(FAT_DirectoryEntry));
     FAT_filename_to_FATfilename(path, new_entry.Name);
     new_entry.Attributes = ARCHIVE;
-    new_entry.Size = 0;
-    int data_cluster = 2;
+    new_entry.Size = 21;
+    int data_cluster = last_cluster_available;
     int entry;
     int offset; 
+
     do{
         data_cluster++;
         offset = data_cluster * 3 / 2; 
         entry = FAT_NextCluster(data_cluster);
     } while(entry != 0 && data_cluster < 10923);
 
-    printf("Found free entry at offset: %x\n", offset);
+    last_cluster_available = data_cluster;
+
     FAT_ModifyFATEntry(data_cluster, 0xFFF);
 
     new_entry.FirstClusterLow = data_cluster;
@@ -397,7 +405,7 @@ int FAT_StatAt(DISK *disk, FAT_File *file, int flags, struct stat* statbuf){
             statbuf->st_mode = S_IFREG | S_ALL;
             break;
         case DIRECTORY:
-            statbuf->st_mode = S_IFREG | S_ALL;
+            statbuf->st_mode = S_IFDIR | S_ALL;
             break;
         default:
             statbuf->st_mode = 7;
@@ -410,12 +418,12 @@ int FAT_StatAt(DISK *disk, FAT_File *file, int flags, struct stat* statbuf){
     statbuf->st_size = file->Size;
     statbuf->st_blksize = SECTOR_SIZE;
     statbuf->st_blocks = 1;
-    statbuf->__st_atim32.tv_sec  = 0;
-    statbuf->__st_atim32.tv_nsec = FAT_getTimeInSeconds(file->Entry.ModifiedDate, file->Entry.ModifiedTime);
-    statbuf->__st_mtim32.tv_sec  = 0;
-    statbuf->__st_mtim32.tv_nsec = FAT_getTimeInSeconds(file->Entry.ModifiedDate, file->Entry.ModifiedTime);
-    statbuf->__st_ctim32.tv_sec  = 0;
-    statbuf->__st_ctim32.tv_nsec = FAT_getTimeInSeconds(file->Entry.CreatedDate, file->Entry.CreatedDate);
+    statbuf->__st_atim32.tv_sec  = FAT_getTimeInSeconds(file->Entry.ModifiedDate, file->Entry.ModifiedTime);
+    statbuf->__st_atim32.tv_nsec = 0;
+    statbuf->__st_mtim32.tv_sec  = FAT_getTimeInSeconds(file->Entry.ModifiedDate, file->Entry.ModifiedTime);
+    statbuf->__st_mtim32.tv_nsec = 0;
+    statbuf->__st_ctim32.tv_sec  = FAT_getTimeInSeconds(file->Entry.CreatedDate, file->Entry.CreatedTime);
+    statbuf->__st_ctim32.tv_nsec = 0;
     statbuf->st_ino = file->Entry.FirstClusterLow;
 
     return 0;
@@ -442,6 +450,7 @@ int FAT_Read(DISK *disk, FAT_File *file, uint32_t byteCount, void *buf) {
 
         if(leftInBuffer == take){
             if(fd->Public.Handle == ROOT_DIRECTORY_HANDLE){
+                // WRONG
                 ++fd->CurrentCluster;
                 if(!FAT_readSectors(disk, FAT_DataClusterToLba(fd->CurrentCluster), 1, fd->Buffer)){
                     printf("FAT: cannot read next cluster\n");
@@ -477,34 +486,48 @@ int FAT_Write(DISK *disk, FAT_File *file, uint32_t len, void *buf){
         is_root_dir = 1;
     }
 
-    uint32_t curr_cluster = fd->CurrentCluster;
-    uint32_t curr_sector_in_cluster = fd->CurrentSectorInCluster;
-    uint32_t position_Before = fd->Public.Position;
     uint8_t *u8Buf = (uint8_t *)buf;
     while(len > 0){
         uint32_t leftInBuffer = SECTOR_SIZE - fd->Public.Position % SECTOR_SIZE;
         uint32_t put = min(len, leftInBuffer);
 
         memcpy(fd->Buffer + fd->Public.Position % SECTOR_SIZE, u8Buf, put);
-        fd->Public.Position = (fd->Public.Position + len) % SECTOR_SIZE;
+        fd->Public.Position += put;
         len -= put;
         u8Buf += put;
         fd->Public.Size += put;
+
+        if(!is_root_dir)
+            FAT_writeSectors(disk, FAT_DataClusterToLba(fd->CurrentCluster) + fd->CurrentSectorInCluster, 1, fd->Buffer);
+        else
+            FAT_writeSectors(disk, g_RootDirLba, 1, fd->Buffer);
+
         // still have to implement next cluster allocation
-        // if(put == leftInBuffer){
-            
-        // }
+        if(leftInBuffer == put){
+            if(fd->Public.Handle == ROOT_DIRECTORY_HANDLE){
+                ++fd->CurrentCluster;
+                if(!FAT_readSectors(disk, FAT_DataClusterToLba(fd->CurrentCluster), 1, fd->Buffer)){
+                    printf("FAT: cannot read next cluster\n");
+                    break; 
+                }
+            } else {
+                FAT_NextSector(disk, fd);
+    
+                if(fd->CurrentCluster >= 0xFF8){
+                    fd->Public.Size = fd->Public.Position;
+                    break;
+                }
+
+                if(!FAT_readSectors(disk, 
+                    FAT_DataClusterToLba(fd->CurrentCluster) + fd->CurrentSectorInCluster, 
+                    1, 
+                    fd->Buffer)){
+                    printf("FAT: cannot read next sector\n");
+                    break; 
+                }
+            }
+        }
     }
-
-    //reset position
-    fd->CurrentCluster = curr_cluster;
-    fd->CurrentSectorInCluster = curr_sector_in_cluster;
-    fd->Public.Position = position_Before;
-
-    if(!is_root_dir)
-        FAT_writeSectors(disk, FAT_DataClusterToLba(fd->CurrentCluster) + fd->CurrentSectorInCluster, 1, fd->Buffer);
-    else
-        FAT_writeSectors(disk, g_RootDirLba, 1, fd->Buffer);
 
     return u8Buf - (uint8_t *)buf;
 }
@@ -533,6 +556,7 @@ int FAT_LSeek(DISK *disk, FAT_File *file, uint32_t offset, uint32_t whence){
         case SEEK_SET:
             fd->CurrentCluster = fd->FirstCluster;
             fd->CurrentSectorInCluster = 0;
+            fd->Public.Position = offset;
             while(offset >= SECTOR_SIZE){
                 if(++fd->CurrentSectorInCluster >= g_Data->BootSector.SectorsPerCluster){
                     fd->CurrentSectorInCluster = 0;
@@ -540,20 +564,18 @@ int FAT_LSeek(DISK *disk, FAT_File *file, uint32_t offset, uint32_t whence){
                 }
                 offset -= SECTOR_SIZE;
             }
-            fd->Public.Position = offset;
             break;
         case SEEK_CUR:
             while(offset >= SECTOR_SIZE){
                 FAT_NextSector(disk, fd);
                 offset -= SECTOR_SIZE;
+                fd->Public.Position += SECTOR_SIZE;
             }
 
             // offset is less than SECTOR_SIZE 
             // but still makes us go to the next sector
             if((fd->Public.Position + offset) >= SECTOR_SIZE){
                 FAT_NextSector(disk, fd);
-                offset -= (SECTOR_SIZE - fd->Public.Position);
-                fd->Public.Position = 0;
             }
 
             fd->Public.Position += offset;
@@ -583,6 +605,21 @@ FAT_FileData *FAT_FindFirstFreeDirectoryEntrySpace(DISK *disk){
         FAT_ReadEntry(disk, &fd->Public, &dirEntry);
     }while(dirEntry.Name[0] != '\0' && memcmp(&dirEntry, &dirEntry+1, sizeof(FAT_DirectoryEntry) - 1)); // search until we find zeroed direntry
     
+    fd->Public.Position -= sizeof(FAT_DirectoryEntry);
+    return fd;
+}
+
+FAT_FileData *FAT_FindDirectoryEntry(DISK *disk, const FAT_DirectoryEntry *entry){
+    FAT_FileData *fd = &g_Data->RootDirectory;
+    FAT_DirectoryEntry dirEntry;
+
+    do{
+        FAT_ReadEntry(disk, &fd->Public, &dirEntry);
+    }while(memcmp(dirEntry.Name, entry->Name, 11) && dirEntry.Name[0] != '\0'); // search until we find direntry
+    
+    if(dirEntry.Name[0] == '\0')
+        return NULL;
+
     fd->Public.Position -= sizeof(FAT_DirectoryEntry);
     return fd;
 }

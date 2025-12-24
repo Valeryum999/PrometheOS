@@ -246,6 +246,7 @@ void keyboard_callback(Registers *regs){
     stdin_buffer[stdin_position++] = parsed_char;
     if(parsed_char == '\n' || stdin_position == 0x200){
       FAT_Write(disk, current_task_PCB->fd[0], stdin_position, stdin_buffer);
+      current_task_PCB->fd[0]->Position = 0;
       stdin_position = 0;
     }
 }
